@@ -1,7 +1,7 @@
 // client/postcss.config.js
 module.exports = {
   plugins: {
-    tailwindcss: {},   // ✅ 올바른 설정
+    tailwindcss: {},   // ⬅️ 그냥 tailwindcss (postcss 붙이면 안 돼)
     autoprefixer: {},
   },
 };
