@@ -1,7 +1,10 @@
 // client/postcss.config.js
-export default {
+// Tailwind v4 방식: PostCSS 플러그인은 '@tailwindcss/postcss' 사용
+// CommonJS 형식(module.exports)이어야 함
+
+module.exports = {
   plugins: {
-    "@tailwindcss/postcss": {},   // <-- 새 패키지 (Tailwind v4 방식)
+    '@tailwindcss/postcss': {},
     autoprefixer: {},
   },
 };
