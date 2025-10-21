@@ -1,0 +1,13 @@
+{
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/" }
+  ],
+  "redirects": [
+    {
+      "source": "/:path*",
+      "has": [{ "type": "host", "value": "www.promptree.kr" }],
+      "destination": "https://promptree.kr/:path*",
+      "permanent": true
+    }
+  ]
+}
