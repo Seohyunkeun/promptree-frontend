@@ -1,30 +1,41 @@
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-  <title>Promptree — 프롬프트를 쉽고 빠르게</title>
-  <meta name="description" content="Gemini / Veo / Midjourney / Sora용 프롬프트를 빠르게 생성하고 공유하세요. 로컬 히스토리, 게시판 지원." />
+    <title>Promptree — 프롬프트를 쉽고 빠르게</title>
+    <meta name="description" content="Gemini / Veo / Midjourney / Sora용 프롬프트를 빠르게 생성하고 공유하세요. 로컬 히스토리, 게시판 지원." />
 
-  <!-- Canonical -->
-  <link rel="canonical" href="https://promptree.kr/" />
+    <!-- Canonical -->
+    <link rel="canonical" href="https://promptree.kr/" />
 
-  <!-- Open Graph -->
-  <meta property="og:type" content="website" />
-  <meta property="og:site_name" content="Promptree" />
-  <meta property="og:title" content="Promptree — 프롬프트를 쉽고 빠르게" />
-  <meta property="og:description" content="Gemini / Veo / Midjourney / Sora용 프롬프트를 빠르게 생성하고 공유하세요." />
-  <meta property="og:url" content="https://promptree.kr/" />
-  <meta property="og:image" content="/og-image.png" />
-  <meta property="og:image:alt" content="Promptree preview" />
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Promptree" />
+    <meta property="og:title" content="Promptree — 프롬프트를 쉽고 빠르게" />
+    <meta property="og:description" content="Gemini / Veo / Midjourney / Sora용 프롬프트를 빠르게 생성하고 공유하세요." />
+    <meta property="og:url" content="https://promptree.kr/" />
+    <meta property="og:image" content="/og-image.png" />
+    <meta property="og:image:alt" content="Promptree preview" />
 
-  <!-- Twitter -->
-  <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="Promptree — 프롬프트를 쉽고 빠르게" />
-  <meta name="twitter:description" content="Gemini / Veo / Midjourney / Sora용 프롬프트를 빠르게 생성하고 공유하세요." />
-  <meta name="twitter:image" content="/og-image.png" />
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Promptree — 프롬프트를 쉽고 빠르게" />
+    <meta name="twitter:description" content="Gemini / Veo / Midjourney / Sora용 프롬프트를 빠르게 생성하고 공유하세요." />
+    <meta name="twitter:image" content="/og-image.png" />
 
-  <!-- Icons & PWA -->
-  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-  <link rel="manifest" href="/manifest.webmanifest" />
-</head>
+    <!-- Icons & PWA -->
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+  </head>
+
+  <body>
+    <!-- 앱 마운트 포인트 (반드시 존재해야 합니다) -->
+    <div id="root"></div>
+
+    <!-- Vite 진입 스크립트 (절대경로 /src/... 유지) -->
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
