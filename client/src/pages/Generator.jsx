@@ -1,12 +1,11 @@
 // client/src/pages/Generator.jsx
 // Targets: Gemini 2.5 Flash Image / Veo 3.1 / Midjourney (V7) / OpenAI Sora 2
-// - UI/단축키/히스토리 유지
-// - 각 타깃에 맞춘 프롬프트 포맷터 적용
+// UX+: 타깃별 프리셋 버튼 + 툴팁 추가, 나머지 로직/스타일/히스토리 유지
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-const LS_DRAFT_KEY   = "pt_gen_draft_prime_help_inline_v2";
-const LS_HISTORY_KEY = "pt_gen_history_prime_help_inline_v2";
+const LS_DRAFT_KEY   = "pt_gen_draft_prime_help_inline_v3";
+const LS_HISTORY_KEY = "pt_gen_history_prime_help_inline_v3";
 const MAX_HISTORY    = 30;
 
 const estimateTokens = (t = "") => Math.ceil((t || "").length / 4);
@@ -20,7 +19,6 @@ async function copyToClipboard(text) {
   }
 }
 
-// Style tags: label (Korean) for UI, value (English) for output
 const STYLE_TAGS = [
   { label: "시네마틱 구도", value: "cinematic composition" },
   { label: "필름 그레인", value: "film grain" },
@@ -31,7 +29,6 @@ const STYLE_TAGS = [
   { label: "안개 연출", value: "volumetric fog" }
 ];
 
-// Light lint rules
 const LINT_RULES = [
   { pat: /\b(really|very|maybe|perhaps|kind of|sort of|a bit|somewhat)\b/gi, rep: "" },
   { pat: /느낌 있게|감성 있게/gi, rep: "cohesive mood" },
@@ -57,10 +54,33 @@ function qualityString(level){
   }
 }
 
-/* ▼ 타깃 포맷터: Gemini / Veo 3.1 / Midjourney (V7) / Sora 2 */
+/* ── 프리셋 정의 ───────────────────────────────────────────── */
+const PRESETS = {
+  gemini: [
+    { name: "사진(인물)", hint: "인물/포트레이트", apply: base => base + ", shallow depth of field, 85mm lens, soft key light" },
+    { name: "제품샷", hint: "제품/전신", apply: base => base + ", studio seamless background, softbox lighting, product hero shot" },
+    { name: "풍경", hint: "자연/건물", apply: base => base + ", wide angle 24mm, golden hour, atmospheric haze" }
+  ],
+  veo31: [
+    { name: "시네틱", hint: "5~8초, 느린 카메라", apply: b => b + "\n(camera: slow dolly-in, fps 24, duration 6s)" },
+    { name: "제품광고", hint: "제품 클로즈업", apply: b => b + "\n(camera: macro push-in on product; glossy reflections; duration 6s)" },
+    { name: "여행씬", hint: "파노라마", apply: b => b + "\n(camera: wide establishing → gentle pan right, natural handheld sway, duration 7s)" }
+  ],
+  midjourney: [
+    { name: "사진", hint: "리얼 포토", apply: b => `${b} --ar 16:9 --style raw --v 7` },
+    { name: "애니", hint: "일러/툰", apply: b => `${b} anime style --ar 16:9 --style raw --v 7` },
+    { name: "제품샷", hint: "e-commerce", apply: b => `${b} studio product shot, soft light --ar 1:1 --style raw --v 7` }
+  ],
+  sora2: [
+    { name: "시네틱", hint: "영화 질감", apply: b => b + "\n[AUDIO] subtle ambient; [CAMERA] wide→push-in; [DUR] 6-8s" },
+    { name: "제품", hint: "클린 모션", apply: b => b + "\n[VISUAL] glossy surface; [CAMERA] macro glide; [DUR] 6s" },
+    { name: "여행", hint: "도시/자연", apply: b => b + "\n[VISUAL] street ambience; [CAMERA] slow pan; [DUR] 8s" }
+  ]
+};
+
+/* ── 타깃별 포맷터 ─────────────────────────────────────────── */
 function formatByTarget(base, target) {
   if (target === "gemini") {
-    // 정적 이미지: 묘사 + 제약
     return [
       "[TARGET] Gemini 2.5 Flash Image",
       "[PROMPT]",
@@ -71,7 +91,7 @@ function formatByTarget(base, target) {
       "- composition: rule of thirds or centered as appropriate",
       "- lighting: natural or studio; specify time-of-day if relevant",
       "- color: well color graded; avoid oversaturation",
-      "- lens: 35mm–85mm, f/1.8–f/5.6 when portrait; otherwise specify",
+      "- lens: 35mm–85mm for portraits; otherwise specify",
       "",
       "[PARAMETERS]",
       "- aspect_ratio: 1:1 or 16:9",
@@ -81,13 +101,12 @@ function formatByTarget(base, target) {
   }
 
   if (target === "veo31") {
-    // 비디오: 샷/카메라/동작/시간
     return [
       "[TARGET] Veo 3.1",
       "[SHOT PLAN]",
       "1) duration: 5–8s, fps: 24",
       "2) camera: start wide → slow dolly-in (or pan), medium motion",
-      "3) subject action: natural motion; avoid rapid spins/jitter",
+      "3) subject action: natural motion; avoid jitter",
       "4) scene beats: intro → main action → settle",
       "",
       "[PROMPT]",
@@ -101,21 +120,10 @@ function formatByTarget(base, target) {
   }
 
   if (target === "midjourney") {
-    // Midjourney V7: /imagine 스타일, 파라미터는 보편값으로
-    // 참고: 현재 기본 버전 V7 (2025-06-17부터 기본) — 파라미터 호환: --ar, --style raw 등
-    const lines = [
-      "/imagine prompt:",
-      base,
-      "",
-      // 파라미터는 사용자 취향 바뀌기 쉬우니 보편값 + 주석 가이드
-      "--ar 16:9 --style raw --v 7",
-      // 필요 시: --chaos 10, --weird 50, --niji 등 추가 가능
-    ];
-    return lines.join(" ");
+    return ["/imagine prompt:", base].join(" ");
   }
 
   if (target === "sora2") {
-    // OpenAI Sora 2: 클립 설계 + 오디오/싱크 힌트 + 안전/제약
     return [
       "[TARGET] OpenAI Sora 2",
       "[SHOT BLUEPRINT]",
@@ -127,12 +135,12 @@ function formatByTarget(base, target) {
       base,
       "",
       "[AUDIO & SYNC]",
-      "- ambient: match scene (rain, city, forest, interior AC, etc.)",
-      "- sync: footstep / mouth movement roughly aligned; no hard desync",
+      "- ambient: match scene (rain/city/forest/interior AC)",
+      "- sync: actions roughly aligned; no hard desync",
       "",
       "[QUALITY & SAFETY]",
-      "- high realism without copyrighted logos or watermarks",
-      "- avoid gore/NSFW; respect privacy and likeness",
+      "- high realism, no logos/watermarks",
+      "- avoid gore/NSFW; respect privacy/likeness",
       "- output: one clip, landscape 16:9"
     ].join("\n");
   }
@@ -153,10 +161,11 @@ function Toast({message}){
     </div>
   );
 }
-function Seg({active,children,onClick}){
+function Seg({active,children,onClick,title}){
   return (
     <button
       onClick={onClick}
+      title={title}
       className={`h-9 px-3 text-sm rounded-full border transition ${
         active?"bg-white text-black border-gray-200 shadow":"bg-gray-900/60 text-gray-200 border-gray-700 hover:bg-gray-800"
       }`}
@@ -185,11 +194,12 @@ function HelpCard({ open, onClose }) {
             </ul>
           </section>
           <section>
-            <div className="font-semibold mb-1">사용 팁</div>
+            <div className="font-semibold mb-1">타깃 가이드</div>
             <ul className="list-disc ml-5 space-y-1 text-gray-300">
-              <li>핵심 키워드를 <b>짧고 선명하게</b> 적을수록 영어 롱프롬프트가 깔끔해집니다.</li>
-              <li>태그는 <b>선택 사항</b>입니다. 필요할 때만 붙이세요.</li>
-              <li>타깃은 나중에 바꿔도 되니, 우선 한 가지로 고정하고 테스트하세요.</li>
+              <li><b>Gemini</b>: 정적 이미지 중심 (묘사·제약을 구체적으로)</li>
+              <li><b>Veo</b>: 비디오 중심 (샷 플랜·카메라 동선·길이 명시)</li>
+              <li><b>Midjourney</b>: /imagine 프롬프트 + 파라미터</li>
+              <li><b>Sora</b>: 샷 설계 + 오디오/싱크 힌트</li>
             </ul>
           </section>
           <div className="flex justify-end">
@@ -203,8 +213,8 @@ function HelpCard({ open, onClose }) {
 
 export default function Generator(){
   const [input, setInput] = useState("");
-  const [quality, setQuality] = useState("standard");     // draft | standard | high | cinematic
-  const [target, setTarget] = useState("gemini");         // gemini | veo31 | midjourney | sora2
+  const [quality, setQuality] = useState("standard");
+  const [target, setTarget] = useState("gemini"); // gemini | veo31 | midjourney | sora2
   const [selectedTags, setSelectedTags] = useState([]);
   const [helpOpen, setHelpOpen] = useState(false);
 
@@ -238,6 +248,14 @@ export default function Generator(){
       setSelectedTags(d.selectedTags??[]); setTarget(d.target??"gemini");
       show("임시 저장 복원 완료");
     } catch { show("복원 실패"); }
+  };
+
+  const applyPreset = (key) => {
+    const preset = PRESETS[target][key];
+    if (!preset) return;
+    const seed = input.trim() ? input.trim() : "비 오는 도쿄 골목, 네온사인 반사, 시네마틱 인물 클로즈업";
+    setInput(preset.apply(seed));
+    show(`프리셋 적용: ${preset.name}`);
   };
 
   const handleGenerate=()=> {
@@ -276,7 +294,9 @@ export default function Generator(){
             <span className="text-xs text-gray-400">단계</span>
             <div className="flex gap-1">
               {["draft","standard","high","cinematic"].map(q=>(
-                <Seg key={q} active={quality===q} onClick={()=>setQuality(q)}>
+                <Seg key={q} active={quality===q} onClick={()=>setQuality(q)} title={
+                  q==="draft"?"라이트":q==="standard"?"클래식":q==="high"?"프라임":"시네마틱"
+                }>
                   {q==="draft"?"라이트":q==="standard"?"클래식":q==="high"?"프라임":"시네마틱"}
                 </Seg>
               ))}
@@ -289,17 +309,34 @@ export default function Generator(){
             <span className="text-xs text-gray-400">타깃</span>
             <div className="flex gap-1">
               {[
-                ["gemini","Gemini 2.5 Flash Image"],
-                ["veo31","Veo 3.1"],
-                ["midjourney","Midjourney (V7)"],
-                ["sora2","OpenAI Sora 2"],
-              ].map(([k,label])=>(
-                <Seg key={k} active={target===k} onClick={()=>setTarget(k)}>{label}</Seg>
+                ["gemini","Gemini 2.5 Flash Image","정적 이미지 중심"],
+                ["veo31","Veo 3.1","비디오 · 샷 플랜"],
+                ["midjourney","Midjourney (V7)","/imagine 파라미터"],
+                ["sora2","OpenAI Sora 2","비디오 · 오디오/싱크"]
+              ].map(([k,label,tip])=>(
+                <Seg key={k} active={target===k} onClick={()=>setTarget(k)} title={tip}>{label}</Seg>
               ))}
             </div>
           </div>
 
           <div className="h-6 w-px bg-gray-700 hidden md:block" />
+
+          {/* 프리셋 */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-400">프리셋</span>
+            <div className="flex flex-wrap gap-1">
+              {PRESETS[target].map((p, idx)=>(
+                <button
+                  key={p.name}
+                  title={p.hint}
+                  onClick={()=>applyPreset(idx)}
+                  className="h-9 px-3 text-sm rounded-full border bg-gray-900/60 text-gray-200 border-gray-700 hover:bg-gray-800"
+                >
+                  {p.name}
+                </button>
+              ))}
+            </div>
+          </div>
 
           <div className="ml-auto">
             <button onClick={handleRestoreDraft} className="h-9 px-4 rounded-full border border-gray-600 bg-gray-900/50 hover:bg-gray-800 transition text-sm" title="Alt + R">복원</button>
@@ -316,7 +353,7 @@ export default function Generator(){
           value={input}
           onChange={e=>setInput(e.target.value)}
           onKeyDown={(e)=>{ const isMac=navigator.platform.toUpperCase().includes("MAC"); const mod=isMac?e.metaKey:e.ctrlKey; if(mod && e.key==="Enter"){ e.preventDefault(); handleGenerate(); } }}
-          placeholder="예: 비 오는 도쿄 골목, 네온사인 반사, 인물 클로즈업, 우산, 시네마틱"
+          placeholder="예: 비 오는 도쿄 골목, 네온사인 반사, 인물 클로즈업, 시네마틱"
           className="w-full h-36 bg-black/70 text-gray-100 p-3 text-sm outline-none rounded-lg border border-gray-700 focus:border-gray-500 transition"
         />
       </section>
