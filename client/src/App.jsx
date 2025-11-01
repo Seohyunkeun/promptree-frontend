@@ -17,13 +17,18 @@ export default function App() {
 
       {/* 페이지 */}
       <main className="max-w-5xl mx-auto px-4 py-6">
-        {/* 🔥 이게 있어야 자식 라우트가 그려집니다 */}
         <Outlet />
       </main>
 
       {/* 푸터 */}
       <footer className="border-t border-zinc-800 text-xs text-zinc-400">
-        <div className="max-w-5xl mx-auto px-4 py-4">© 2025 Promptree</div>
+        <div className="max-w-5xl mx-auto px-4 py-4 flex flex-wrap items-center gap-4">
+          <span>© 2025 Promptree</span>
+          <NavLink to="/policy" className="hover:underline">이용약관</NavLink>
+          <NavLink to="/privacy" className="hover:underline">개인정보처리방침</NavLink>
+          <a href="/sitemap.xml" className="hover:underline">사이트맵</a>
+          <a href="mailto:sidh0318@naver.com" className="hover:underline">문의: sidh0318@naver.com</a>
+        </div>
       </footer>
     </div>
   );
