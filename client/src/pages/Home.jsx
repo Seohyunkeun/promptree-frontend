@@ -9,10 +9,14 @@ export default function Home() {
       {/* HERO */}
       <section className="relative overflow-hidden rounded-3xl border border-zinc-800 bg-gradient-to-b from-[#0d0d13] to-[#0b0b0f] p-8 md:p-12">
         {/* 배경 장식 */}
-        <div className="pointer-events-none absolute -top-24 -right-24 h-80 w-80 rounded-full blur-3xl opacity-30"
-             style={{background: "radial-gradient(60% 60% at 50% 50%, #7c3aed33, #11111100)"}} />
-        <div className="pointer-events-none absolute -bottom-28 -left-28 h-96 w-96 rounded-full blur-3xl opacity-30"
-             style={{background: "radial-gradient(60% 60% at 50% 50%, #22d3ee33, #11111100)"}} />
+        <div
+          className="pointer-events-none absolute -top-24 -right-24 h-80 w-80 rounded-full blur-3xl opacity-30"
+          style={{ background: "radial-gradient(60% 60% at 50% 50%, #7c3aed33, #11111100)" }}
+        />
+        <div
+          className="pointer-events-none absolute -bottom-28 -left-28 h-96 w-96 rounded-full blur-3xl opacity-30"
+          style={{ background: "radial-gradient(60% 60% at 50% 50%, #22d3ee33, #11111100)" }}
+        />
 
         <div className="relative z-10 grid gap-6 md:grid-cols-2 items-center">
           <div>
@@ -24,7 +28,8 @@ export default function Home() {
               프롬프트 만들기, <span className="text-white">쉽고 빠르게.</span>
             </h1>
             <p className="mt-3 text-zinc-400">
-              Gemini / Veo / Midjourney / Sora용 프롬프트를 단숨에.  
+              Gemini / Veo / Midjourney / Sora용 프롬프트를 단숨에.
+              <br className="hidden md:block" />
               커뮤니티 게시판에서 팁과 결과물도 함께 공유해요.
             </p>
 
@@ -110,25 +115,26 @@ export default function Home() {
         <div className="grid gap-6 md:grid-cols-[1fr_auto] items-center">
           <div>
             <h2 className="text-2xl font-bold">지금 바로 만들어 보고, 게시판에 결과도 공유해요.</h2>
-            <p className="mt-2 text-zinc-400">초안 → 프라임 → 시네마틱까지 단계별로 품질을 올려보세요.</p>
+            <p className="mt-2 text-zinc-400">
+              초안 → 프라임 → 시네마틱까지 단계별로 품질을 올려보세요. 저장된 작업물은
+              브라우저 로컬스토리지에 저장됩니다. 히스토리에서 다시 불러올 수 있어요.
+            </p>
           </div>
-          <div className="flex flex-wrap gap-3">
-            <Link to="/generator" className="rounded-xl bg-white text-black px-5 py-3 font-semibold shadow hover:bg-zinc-200 transition">
-              생성기 시작하기
-            </Link>
-            <Link to="/board" className="rounded-xl border border-zinc-700 bg-zinc-900/60 px-5 py-3 hover:bg-zinc-800 transition">
-              게시판 글쓰기
-            </Link>
-          </div>
+          <Link
+            to="/generator"
+            className="inline-flex items-center justify-center h-12 px-6 rounded-xl bg-white text-black font-semibold shadow hover:bg-zinc-200 transition"
+          >
+            지금 시작하기
+          </Link>
         </div>
       </section>
 
-      {/* FAQ (간단) */}
-      <section className="grid gap-3">
-        <h3 className="text-lg font-semibold">자주 묻는 질문</h3>
-        <Faq q="결과물은 어디에 저장되나요?" a="브라우저 로컬스토리지에 저장됩니다. 히스토리에서 다시 불러올 수 있어요." />
+      {/* FAQ */}
+      <section className="grid gap-3 md:grid-cols-3">
         <Faq q="도메인 연결은 끝났나요?" a="네. promptree.kr에서 접근 가능하며 SPA 라우팅도 설정되어 있어요." />
         <Faq q="바로 배포되나요?" a="Git push 시 Vercel이 자동 빌드/배포합니다." />
+        <Faq q="개인정보는 안전한가요?"
+             a="로그인은 아직 없고, 작성 데이터는 로컬스토리지에 저장되며 서버로 전송되지 않습니다." />
       </section>
     </div>
   );

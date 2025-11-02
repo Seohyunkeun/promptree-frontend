@@ -8,9 +8,31 @@ export default function App() {
         <div className="max-w-5xl mx-auto px-4 h-14 flex items-center gap-4">
           <Link to="/" className="font-bold text-lg">🌳 Promptree</Link>
           <nav className="flex items-center gap-2 text-sm">
-            <NavLink to="/" end className={({isActive}) => `px-3 py-1.5 rounded ${isActive ? "bg-white text-black" : "hover:bg-zinc-800/60"}`}>홈</NavLink>
-            <NavLink to="/generator" className={({isActive}) => `px-3 py-1.5 rounded ${isActive ? "bg-white text-black" : "hover:bg-zinc-800/60"}`}>생성기</NavLink>
-            <NavLink to="/board" className={({isActive}) => `px-3 py-1.5 rounded ${isActive ? "bg-white text-black" : "hover:bg-zinc-800/60"}`}>게시판</NavLink>
+            <NavLink
+              to="/"
+              end
+              className={({isActive}) =>
+                `px-3 py-1.5 rounded ${isActive ? "bg-white text-black" : "hover:bg-zinc-800/60"}`
+              }
+            >
+              홈
+            </NavLink>
+            <NavLink
+              to="/generator"
+              className={({isActive}) =>
+                `px-3 py-1.5 rounded ${isActive ? "bg-white text-black" : "hover:bg-zinc-800/60"}`
+              }
+            >
+              생성기
+            </NavLink>
+            <NavLink
+              to="/board"
+              className={({isActive}) =>
+                `px-3 py-1.5 rounded ${isActive ? "bg-white text-black" : "hover:bg-zinc-800/60"}`
+              }
+            >
+              게시판
+            </NavLink>
           </nav>
         </div>
       </header>
