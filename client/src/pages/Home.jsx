@@ -1,183 +1,189 @@
 // client/src/pages/Home.jsx
-// 목적: Promptree의 핵심(생성기/게시판)을 5초 안에 이해시키고 바로 유도
-// 의존성: react-router-dom (Link), Tailwind v4
 import { Link } from "react-router-dom";
+import { useMemo, useRef } from "react";
+
+/* ─────────────────────────────────────────────
+  1) 로컬 샘플 파일명만 바꿔서 쓰면 됨.
+     /public/samples/ 폴더에 이미지를 넣어두세요.
+     파일이 없어도 자동으로 그라디언트 폴백 표시.
+───────────────────────────────────────────── */
+const LOCAL_SAMPLES = [
+  { file: "gemini-01.jpg",     model: "Gemini",     caption: "네온 시티 · 인물",     to: "/board" },
+  { file: "veo-01.jpg",        model: "Veo",        caption: "제품 · 하이키",         to: "/board" },
+  { file: "midjourney-01.jpg", model: "Midjourney", caption: "시네마틱 골목",         to: "/board" },
+  { file: "sora-01.jpg",       model: "Sora",       caption: "캐릭터 포스터",         to: "/board" },
+  { file: "gemini-02.jpg",     model: "Gemini",     caption: "룩북",                 to: "/board" },
+  { file: "veo-02.jpg",        model: "Veo",        caption: "푸드 톱뷰",            to: "/board" },
+  { file: "midjourney-02.jpg", model: "Midjourney", caption: "무드 포스터",           to: "/board" },
+  { file: "sora-02.jpg",       model: "Sora",       caption: "리플렉션 제품",         to: "/board" },
+];
+
+const MODEL_BADGE = {
+  Gemini:      "bg-emerald-500/20 text-emerald-200 ring-1 ring-emerald-500/30",
+  Veo:         "bg-sky-500/20 text-sky-200 ring-1 ring-sky-500/30",
+  Midjourney:  "bg-fuchsia-500/20 text-fuchsia-200 ring-1 ring-fuchsia-500/30",
+  Sora:        "bg-indigo-500/20 text-indigo-200 ring-1 ring-indigo-500/30",
+};
+
+/* 폴백: 이미지 로드 실패 시 보여줄 그라디언트 */
+const FALLBACK_BG =
+  "bg-[radial-gradient(60%_50%_at_30%_20%,rgba(99,102,241,0.25),transparent),radial-gradient(45%_40%_at_80%_10%,rgba(16,185,129,0.18),transparent)]";
+
+/* 경로 도우미 */
+const pathOf = (file) => (file ? `/samples/${file}` : "");
+
+/* ───────────────────────────────────────────── */
 
 export default function Home() {
+  const cards = useMemo(() => LOCAL_SAMPLES, []);
+
   return (
-    <div className="space-y-12">
-      {/* HERO */}
-      <section className="relative overflow-hidden rounded-3xl border border-zinc-800 bg-gradient-to-b from-[#0d0d13] to-[#0b0b0f] p-8 md:p-12">
-        {/* 배경 장식 */}
+    <div className="min-h-[calc(100vh-6rem)]">
+      {/* ===== Hero (좌 텍스트 / 우 카드, 우측 정렬) ===== */}
+      <section className="relative">
         <div
-          className="pointer-events-none absolute -top-24 -right-24 h-80 w-80 rounded-full blur-3xl opacity-30"
-          style={{ background: "radial-gradient(60% 60% at 50% 50%, #7c3aed33, #11111100)" }}
+          aria-hidden
+          className="pointer-events-none absolute inset-0 bg-[radial-gradient(60%_40%_at_20%_10%,rgba(88,88,255,.10),transparent),radial-gradient(40%_35%_at_80%_10%,rgba(0,200,200,.08),transparent)]"
         />
-        <div
-          className="pointer-events-none absolute -bottom-28 -left-28 h-96 w-96 rounded-full blur-3xl opacity-30"
-          style={{ background: "radial-gradient(60% 60% at 50% 50%, #22d3ee33, #11111100)" }}
-        />
+        <div className="relative mx-auto max-w-6xl px-4 py-8 sm:py-10">
+          <div className="rounded-2xl border border-zinc-800 bg-[#0b0b0f]/70 p-5 sm:p-8">
+            <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_420px]">
+              {/* 왼쪽 카피 */}
+              <div className="flex flex-col">
+                <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-zinc-800 bg-zinc-900/60 px-2.5 py-1 text-[11px] text-zinc-400">
+                  <span className="inline-block size-1.5 rounded-full bg-emerald-400" />
+                  설치 없이 바로 시작 · 무료
+                </div>
+                <h1 className="text-[34px] font-extrabold tracking-tight sm:text-[46px] leading-[1.08] text-white">
+                  프롬프트 만들기,
+                  <span className="block mt-1">쉽고 빠르게.</span>
+                </h1>
+                <p className="mt-4 max-w-xl text-[15px] text-zinc-300">
+                  Gemini / Veo / Midjourney / Sora용 프롬프트를 단숨에 만들고,
+                  결과물과 팁을 커뮤니티 게시판에서 함께 나눠요.
+                </p>
+                <div className="mt-6 flex flex-wrap items-center gap-3">
+                  <Link
+                    to="/generator"
+                    className="group inline-flex items-center gap-2 rounded-xl bg-white px-4.5 py-2.5 font-medium text-black transition hover:shadow-[0_0_0_3px_rgba(255,255,255,0.25)]"
+                  >
+                    <span className="transition group-hover:-translate-y-0.5">🚀</span>
+                    프롬프트 생성기 열기
+                  </Link>
+                  <Link
+                    to="/board"
+                    className="inline-flex items-center gap-2 rounded-xl border border-zinc-700 bg-zinc-900/70 px-4.5 py-2.5 font-medium text-zinc-200 hover:bg-zinc-800/70"
+                  >
+                    💬 게시판 둘러보기
+                  </Link>
+                </div>
+                <ul className="mt-5 flex flex-wrap gap-x-5 gap-y-1.5 text-[13px] text-zinc-400">
+                  <li>• 무설치 · 브라우저 기반</li>
+                  <li>• 로컬 임시저장 & 히스토리</li>
+                  <li>• 라우팅 지원</li>
+                </ul>
+              </div>
 
-        <div className="relative z-10 grid gap-6 md:grid-cols-2 items-center">
-          <div>
-            <p className="inline-flex items-center gap-2 rounded-full border border-zinc-700 bg-zinc-900/50 px-3 py-1 text-xs text-zinc-300">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              이번 주 런칭 준비 중
-            </p>
-            <h1 className="mt-4 text-4xl md:text-5xl font-extrabold tracking-tight">
-              프롬프트 만들기, <span className="text-white">쉽고 빠르게.</span>
-            </h1>
-            <p className="mt-3 text-zinc-400">
-              Gemini / Veo / Midjourney / Sora용 프롬프트를 단숨에.
-              <br className="hidden md:block" />
-              커뮤니티 게시판에서 팁과 결과물도 함께 공유해요.
-            </p>
-
-            <div className="mt-6 flex flex-wrap gap-3">
-              <Link
-                to="/generator"
-                className="inline-flex items-center gap-2 rounded-xl bg-white text-black px-5 py-3 font-semibold shadow hover:bg-zinc-200 transition"
-              >
-                🚀 프롬프트 생성기 열기
-              </Link>
-              <Link
-                to="/board"
-                className="inline-flex items-center gap-2 rounded-xl border border-zinc-700 bg-zinc-900/60 px-5 py-3 hover:bg-zinc-800 transition"
-              >
-                💬 게시판 둘러보기
-              </Link>
+              {/* 오른쪽 카드(우측 정렬) */}
+              <div className="w-full max-w-[420px] justify-self-end ml-auto">
+                <div className="space-y-2">
+                  <TargetCardCompact label="IMAGE" title="Gemini 2.5 Flash Image" desc="정적 이미지 · 묘사 중심"   dot="bg-emerald-500" />
+                  <TargetCardCompact label="VIDEO" title="Veo 3.1"               desc="비디오 · 샷 플랜/카메라 동선" dot="bg-sky-500" />
+                  <TargetCardCompact label="IMAGE" title="Midjourney (V7)"        desc="/imagine 파라미터 · 스타일" dot="bg-fuchsia-500" />
+                  <TargetCardCompact label="VIDEO" title="OpenAI Sora 2"          desc="클립 블루프린트 · 오디오 싱크" dot="bg-indigo-500" />
+                </div>
+              </div>
             </div>
-
-            <div className="mt-4 flex items-center gap-3 text-xs text-zinc-500">
-              <span className="inline-flex items-center gap-1">
-                <Dot /> 무설치·브라우저 기반
-              </span>
-              <span className="inline-flex items-center gap-1">
-                <Dot /> 로컬 임시저장 & 히스토리
-              </span>
-              <span className="inline-flex items-center gap-1">
-                <Dot /> 라우팅 지원
-              </span>
-            </div>
-          </div>
-
-          {/* 미니 미리보기 카드 */}
-          <div className="grid gap-3">
-            <PreviewCard
-              title="Gemini 2.5 Flash Image"
-              subtitle="정적 이미지 · 묘사 중심"
-              badge="IMAGE"
-              gradient="from-emerald-400/20"
-            />
-            <PreviewCard
-              title="Veo 3.1"
-              subtitle="비디오 · 샷 플랜/카메라 동선"
-              badge="VIDEO"
-              gradient="from-indigo-400/20"
-            />
-            <PreviewCard
-              title="Midjourney (V7)"
-              subtitle="/imagine 파라미터 · 스타일"
-              badge="IMAGE"
-              gradient="from-fuchsia-400/20"
-            />
-            <PreviewCard
-              title="OpenAI Sora 2"
-              subtitle="클립 블루프린트 · 오디오 싱크"
-              badge="VIDEO"
-              gradient="from-cyan-400/20"
-            />
           </div>
         </div>
       </section>
 
-      {/* 기능 하이라이트 */}
-      <section className="grid gap-4 md:grid-cols-3">
-        <Feature
-          icon="🧩"
-          title="타깃별 최적 포맷"
-          desc="모델 특성에 맞춘 프롬프트 골격(Gemini/Veo/MJ/Sora)로 실패를 줄입니다."
-        />
-        <Feature
-          icon="📝"
-          title="히스토리 & 복원"
-          desc="로컬스토리지 기반으로 최근 작업 불러오기/비교/복사에 최적화."
-        />
-        <Feature
-          icon="🛡️"
-          title="안전 가이드"
-          desc="워터마크·저작권·NSFW 등 금칙 가이드를 템플릿에 기본 포함."
-        />
-      </section>
-
-      {/* CTA 섹션 */}
-      <section className="rounded-3xl border border-zinc-800 p-8 bg-gradient-to-r from-[#101018] to-[#0b0b0f]">
-        <div className="grid gap-6 md:grid-cols-[1fr_auto] items-center">
-          <div>
-            <h2 className="text-2xl font-bold">지금 바로 만들어 보고, 게시판에 결과도 공유해요.</h2>
-            <p className="mt-2 text-zinc-400">
-              초안 → 프라임 → 시네마틱까지 단계별로 품질을 올려보세요. 저장된 작업물은
-              브라우저 로컬스토리지에 저장됩니다. 히스토리에서 다시 불러올 수 있어요.
-            </p>
+      {/* ===== 프롬프트 샘플 ===== */}
+      <section className="relative border-t border-zinc-850/60">
+        <div className="mx-auto max-w-6xl px-4 py-6 sm:py-7">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-[15px] font-semibold text-white sm:text-base">프롬프트 샘플</h2>
+            <Link to="/board" className="text-sm text-zinc-300 hover:text-white">더 보기 →</Link>
           </div>
-          <Link
-            to="/generator"
-            className="inline-flex items-center justify-center h-12 px-6 rounded-xl bg-white text-black font-semibold shadow hover:bg-zinc-200 transition"
-          >
-            지금 시작하기
-          </Link>
+          <GalleryRow cards={cards} />
         </div>
-      </section>
-
-      {/* FAQ */}
-      <section className="grid gap-3 md:grid-cols-3">
-        <Faq q="도메인 연결은 끝났나요?" a="네. promptree.kr에서 접근 가능하며 SPA 라우팅도 설정되어 있어요." />
-        <Faq q="바로 배포되나요?" a="Git push 시 Vercel이 자동 빌드/배포합니다." />
-        <Faq q="개인정보는 안전한가요?"
-             a="로그인은 아직 없고, 작성 데이터는 로컬스토리지에 저장되며 서버로 전송되지 않습니다." />
       </section>
     </div>
   );
 }
 
-/* ─── 작은 컴포넌트들 ─── */
-
-function Dot() {
-  return <span className="inline-block w-1.5 h-1.5 rounded-full bg-zinc-500" />;
-}
-
-function Feature({ icon, title, desc }) {
+/* ── UI 조각들 ── */
+function TargetCardCompact({ label, title, desc, dot = "bg-emerald-500" }) {
   return (
-    <div className="rounded-2xl border border-zinc-800 p-5 bg-zinc-900/30">
-      <div className="text-2xl">{icon}</div>
-      <h4 className="mt-2 font-semibold">{title}</h4>
-      <p className="mt-1 text-sm text-zinc-400">{desc}</p>
-    </div>
-  );
-}
-
-function PreviewCard({ title, subtitle, badge, gradient }) {
-  return (
-    <div className="rounded-2xl border border-zinc-800 p-4 bg-zinc-900/50">
-      <div className="flex items-center justify-between">
-        <div className="text-xs px-2 py-0.5 rounded-full border border-zinc-700 text-zinc-300 bg-zinc-950/70">
-          {badge}
-        </div>
-        <div className={`h-6 w-6 rounded-full bg-gradient-to-br ${gradient} to-transparent`} />
+    <div className="rounded-xl border border-zinc-800 bg-zinc-900/55 px-3 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+      <div className="mb-1 flex items-center gap-2 text-[10px] text-zinc-400">
+        <span className="rounded-full border border-zinc-700 bg-zinc-800 px-1.5 py-[1px] leading-none">{label}</span>
+        <span className={`inline-block size-1.5 rounded-full ${dot}`} />
       </div>
-      <div className="mt-3">
-        <div className="font-semibold">{title}</div>
-        <div className="text-xs text-zinc-400">{subtitle}</div>
-      </div>
+      <div className="text-[15px] font-semibold text-white leading-tight">{title}</div>
+      <div className="mt-[2px] text-[12px] text-zinc-400">{desc}</div>
     </div>
   );
 }
 
-function Faq({ q, a }) {
+function GalleryRow({ cards }) {
+  const ref = useRef(null);
+  const slide = (dir = 1) => {
+    const el = ref.current;
+    if (!el) return;
+    const w = Math.min(el.clientWidth, 900);
+    el.scrollBy({ left: dir * (w * 0.9), behavior: "smooth" });
+  };
   return (
-    <details className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
-      <summary className="cursor-pointer select-none">{q}</summary>
-      <p className="mt-2 text-sm text-zinc-400">{a}</p>
-    </details>
+    <div className="relative">
+      <div className="pointer-events-none absolute inset-y-0 left-0 w-10 bg-gradient-to-r from-[#0b0b0f] to-transparent" />
+      <div className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-[#0b0b0f] to-transparent" />
+      <div
+        ref={ref}
+        className="scrollbar-none flex snap-x snap-mandatory gap-3 overflow-x-auto rounded-2xl border border-zinc-800 bg-zinc-900/40 p-3"
+      >
+        {cards.map((c, i) => <MiniCard key={i} {...c} />)}
+      </div>
+      <button
+        onClick={() => slide(-1)}
+        className="absolute left-2 top-1/2 hidden -translate-y-1/2 rounded-full border border-zinc-700 bg-zinc-900/80 p-2 text-zinc-200 backdrop-blur hover:bg-zinc-800 md:inline-flex"
+        aria-label="이전"
+      >◀</button>
+      <button
+        onClick={() => slide(1)}
+        className="absolute right-2 top-1/2 hidden -translate-y-1/2 rounded-full border border-zinc-700 bg-zinc-900/80 p-2 text-zinc-200 backdrop-blur hover:bg-zinc-800 md:inline-flex"
+        aria-label="다음"
+      >▶</button>
+    </div>
+  );
+}
+
+function MiniCard({ file, model = "Gemini", caption = "", to = "#" }) {
+  const badge = MODEL_BADGE[model] ?? "bg-zinc-800/60 text-zinc-200 ring-zinc-700/40";
+  const src = pathOf(file);
+
+  return (
+    <Link
+      to={to}
+      className="group inline-flex w-[220px] snap-start flex-col overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900/60 shadow-sm transition hover:border-zinc-700"
+    >
+      <div className={`relative aspect-[16/10] w-full overflow-hidden ${!src ? FALLBACK_BG : ""}`}>
+        {src ? (
+          <img
+            src={src}
+            alt={caption || model}
+            className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
+            loading="lazy"
+            onError={(e) => {
+              e.currentTarget.remove();
+            }}
+          />
+        ) : null}
+        <span className={`absolute left-2 top-2 rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 backdrop-blur ${badge}`}>
+          {model}
+        </span>
+      </div>
+      <div className="truncate px-2.5 py-2 text-xs text-zinc-200">{caption}</div>
+    </Link>
   );
 }
