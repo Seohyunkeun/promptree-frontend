@@ -27,7 +27,7 @@ const STORAGE_KEY = "pt_board_posts_v2";
 /* 🔐 관리자 모드 */
 const ADMIN_FLAG_KEY = "pt_board_admin_flag";
 // 형이 원하는 비밀번호로 바꿔 써도 됨
-const ADMIN_PASSWORD = "promptree-admin-2024";
+const ADMIN_PASSWORD = "wnrdma44#";
 const ADMIN_PASSWORD_HASH = hashLite(ADMIN_PASSWORD);
 
 const currentUserId = (() => {
