@@ -1,5 +1,8 @@
-// client/src/pages/Board.jsx — robust to "/board/*" routing (id fallback from pathname)
-// 글쓰기 화면 가독성 + 전체 다크 UI 통일 (초록 제거, 화이트 톤 정리)
+// client/src/pages/Board.jsx
+// - "/board/*" 라우팅 대응
+// - 글쓰기/상세 다크톤
+// - 🔐 관리자 모드 + 공지 말머리 + 공지 상단 고정
+
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useLocation } from "react-router-dom";
 
@@ -17,8 +20,16 @@ function hashLite(str) {
   for (const ch of String(str)) h = (h * 33) ^ ch.charCodeAt(0);
   return (h >>> 0).toString(16).padStart(8, "0");
 }
+
 const USER_KEY = "pt_board_user_id";
 const STORAGE_KEY = "pt_board_posts_v2";
+
+/* 🔐 관리자 모드 */
+const ADMIN_FLAG_KEY = "pt_board_admin_flag";
+// 형이 원하는 비밀번호로 바꿔 써도 됨
+const ADMIN_PASSWORD = "promptree-admin-2024";
+const ADMIN_PASSWORD_HASH = hashLite(ADMIN_PASSWORD);
+
 const currentUserId = (() => {
   try {
     let id = localStorage.getItem(USER_KEY);
@@ -31,6 +42,7 @@ const currentUserId = (() => {
     return "anon";
   }
 })();
+
 const fmtDate = (ts) => {
   const d = new Date(ts);
   const yy = String(d.getFullYear()).slice(2);
@@ -40,6 +52,7 @@ const fmtDate = (ts) => {
   const MM = String(d.getMinutes()).toString().padStart(2, "0");
   return `${yy}/${mm}/${dd} ${HH}:${MM}`;
 };
+
 const byPinnedThenTime = (a, b) =>
   (b.pinned - a.pinned) || (b.updatedAt - a.updatedAt);
 
@@ -56,7 +69,7 @@ function normalizeComment(c) {
 function normalizePost(p) {
   return {
     id: String(p?.id ?? safeUUID()),
-    category: ["일반", "프롬프트", "기타"].includes(p?.category)
+    category: ["공지", "일반", "프롬프트", "기타"].includes(p?.category)
       ? p.category
       : "일반",
     title: String(p?.title ?? ""),
@@ -93,8 +106,15 @@ function savePosts(arr) {
 }
 
 /* Editor (가독성 + 다크톤) */
-function Editor({ mode = "new", draft = {}, onCancel, onSubmit }) {
-  const [category, setCategory] = useState(draft.category || "일반");
+function Editor({ mode = "new", draft = {}, onCancel, onSubmit, isAdmin }) {
+  const initialCategory =
+    draft.category && ["공지", "일반", "프롬프트", "기타"].includes(draft.category)
+      ? draft.category
+      : "일반";
+
+  const [category, setCategory] = useState(
+    isAdmin ? initialCategory : initialCategory === "공지" ? "일반" : initialCategory
+  );
   const [title, setTitle] = useState(draft.title || "");
   const [author, setAuthor] = useState(draft.author || "");
   const [pw, setPw] = useState("");
@@ -104,6 +124,10 @@ function Editor({ mode = "new", draft = {}, onCancel, onSubmit }) {
 
   const fileImgRef = useRef(null);
   const fileVidRef = useRef(null);
+
+  const CATEGORY_OPTIONS = isAdmin
+    ? ["공지", "일반", "프롬프트", "기타"]
+    : ["일반", "프롬프트", "기타"];
 
   function handleSubmit() {
     if (!title.trim()) return alert("제목을 입력해 주세요");
@@ -148,7 +172,7 @@ function Editor({ mode = "new", draft = {}, onCancel, onSubmit }) {
               onChange={(e) => setCategory(e.target.value)}
               className="px-3 py-2 rounded-xl border border-zinc-700 bg-[#111117] text-sm text-zinc-100"
             >
-              {["일반", "프롬프트", "기타"].map((v) => (
+              {CATEGORY_OPTIONS.map((v) => (
                 <option key={v} value={v}>
                   {v}
                 </option>
@@ -291,6 +315,7 @@ function DetailView({
   onPin,
   onAddComment,
   onDeleteComment,
+  isAdmin,
 }) {
   const { id: paramId } = useParams();
   const location = useLocation();
@@ -324,16 +349,28 @@ function DetailView({
     if (onDeletePost(post.id)) nav("/board", { replace: true });
   }
 
+  const isNotice = post.category === "공지";
+
   return (
     <article className="p-6 rounded-2xl border border-zinc-800 bg-zinc-950/80">
       <header className="mb-5">
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <span className="px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-300 text-[11px] border border-violet-500/30">
+              <span
+                className={`px-2 py-0.5 rounded-full text-[11px] border ${
+                  isNotice
+                    ? "bg-amber-500/10 text-amber-300 border-amber-500/60"
+                    : "bg-violet-500/10 text-violet-300 border-violet-500/30"
+                }`}
+              >
                 {post.category}
               </span>
-              <h1 className="text-xl font-semibold leading-tight text-zinc-50">
+              <h1
+                className={`text-xl leading-tight ${
+                  isNotice ? "font-bold text-amber-100" : "font-semibold text-zinc-50"
+                }`}
+              >
                 {post.title}
               </h1>
             </div>
@@ -403,12 +440,17 @@ function DetailView({
         >
           {alreadyLiked ? "👎 취소" : "👍 좋아요"} {post.likes}
         </button>
-        <button
-          onClick={() => onPin(post.id)}
-          className="px-3 py-1.5 rounded-xl border border-zinc-700 bg-[#101018] text-sm text-zinc-100 hover:bg-zinc-900"
-        >
-          {post.pinned ? "고정 해제" : "고정"}
-        </button>
+
+        {/* 공지 아닌 글만 고정 가능 (관리자 전용) */}
+        {isAdmin && !isNotice && (
+          <button
+            onClick={() => onPin(post.id)}
+            className="px-3 py-1.5 rounded-xl border border-zinc-700 bg-[#101018] text-sm text-zinc-100 hover:bg-zinc-900"
+          >
+            {post.pinned ? "고정 해제" : "고정"}
+          </button>
+        )}
+
         <button
           onClick={() => nav("/board")}
           className="px-3 py-1.5 rounded-xl border border-zinc-700 bg-[#101018] text-sm text-zinc-100 hover:bg-zinc-900"
@@ -437,7 +479,7 @@ function DetailView({
   );
 }
 
-/* 댓글 폼/리스트도 다크톤 */
+/* 댓글 폼/리스트 */
 function CommentForm({ onAdd }) {
   const [author, setAuthor] = useState("");
   const [pw, setPw] = useState("");
@@ -524,7 +566,7 @@ function CommentList({ comments, onDelete }) {
   );
 }
 
-/* 목록 테이블 (다크톤 / hover 효과) */
+/* 목록 테이블 */
 function ListTable({ posts, page, pageSize }) {
   const startIndex = (page - 1) * pageSize;
   const slice = posts.slice(startIndex, startIndex + pageSize);
@@ -546,16 +588,23 @@ function ListTable({ posts, page, pageSize }) {
           {slice.map((p, i) => {
             const no = posts.length - (startIndex + i);
             const commentCnt = p.comments?.length || 0;
-            const badgeClass =
-              p.category === "프롬프트"
-                ? "bg-violet-500/10 text-violet-300 border-violet-500/40"
-                : p.category === "기타"
-                ? "bg-sky-500/10 text-sky-300 border-sky-500/40"
-                : "bg-zinc-700/20 text-zinc-200 border-zinc-500/40";
+            const isNotice = p.category === "공지";
+            const badgeClass = isNotice
+              ? "bg-amber-500/10 text-amber-300 border-amber-500/60"
+              : p.category === "프롬프트"
+              ? "bg-violet-500/10 text-violet-300 border-violet-500/40"
+              : p.category === "기타"
+              ? "bg-sky-500/10 text-sky-300 border-sky-500/40"
+              : "bg-zinc-700/20 text-zinc-200 border-zinc-500/40";
+
             return (
               <tr
                 key={p.id}
-                className="border-b border-zinc-800 last:border-0 hover:bg-zinc-900/60 transition-colors"
+                className={`border-b border-zinc-800 last:border-0 transition-colors ${
+                  isNotice
+                    ? "bg-zinc-900/80 hover:bg-zinc-900"
+                    : "hover:bg-zinc-900/60"
+                }`}
               >
                 <td className="text-center py-2 text-zinc-400">{no}</td>
                 <td className="text-center">
@@ -568,7 +617,11 @@ function ListTable({ posts, page, pageSize }) {
                 <td className="py-2">
                   <Link
                     to={`/board/${p.id}`}
-                    className="hover:underline text-zinc-50"
+                    className={`hover:underline ${
+                      isNotice
+                        ? "font-semibold text-amber-100"
+                        : "text-zinc-50"
+                    }`}
                   >
                     <span className="align-middle">{p.title}</span>
                     {commentCnt ? (
@@ -624,12 +677,28 @@ export default function Board() {
   const [pageSize, setPageSize] = useState(30);
   const [page, setPage] = useState(1);
 
+  /* 🔐 관리자 모드 상태 */
+  const [isAdmin, setIsAdmin] = useState(() => {
+    try {
+      return localStorage.getItem(ADMIN_FLAG_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+
   useEffect(() => {
     savePosts(posts);
   }, [posts]);
   useEffect(() => {
     const onStorage = (e) => {
       if (e.key === STORAGE_KEY) setPosts(loadPosts());
+      if (e.key === ADMIN_FLAG_KEY) {
+        try {
+          setIsAdmin(localStorage.getItem(ADMIN_FLAG_KEY) === "1");
+        } catch {
+          setIsAdmin(false);
+        }
+      }
     };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
@@ -640,41 +709,55 @@ export default function Board() {
     let arr = [...posts];
     if (q)
       arr = arr.filter((p) =>
-        `${p.title}\n${p.category}\n${p.author}`
-          .toLowerCase()
-          .includes(q)
+        `${p.title}\n${p.category}\n${p.author}`.toLowerCase().includes(q)
       );
     if (onlyPinned) arr = arr.filter((p) => p.pinned);
-    if (sortKey === "updated") {
-      arr.sort(byPinnedThenTime);
-    } else if (sortKey === "likes") {
-      arr.sort(
-        (a, b) =>
-          b.pinned - a.pinned ||
-          (b.likes || 0) - (a.likes || 0) ||
-          (b.updatedAt - a.updatedAt)
-      );
-    }
-    return arr;
+
+    const likesSort = (a, b) =>
+      b.pinned - a.pinned ||
+      (b.likes || 0) - (a.likes || 0) ||
+      (b.updatedAt - a.updatedAt);
+
+    const sortFn = sortKey === "likes" ? likesSort : byPinnedThenTime;
+
+    // 공지 먼저, 그 다음 일반글들
+    const notices = arr.filter((p) => p.category === "공지");
+    const others = arr.filter((p) => p.category !== "공지");
+
+    notices.sort(sortFn);
+    others.sort(sortFn);
+
+    return [...notices, ...others];
   }, [posts, query, onlyPinned, sortKey]);
 
   function submitNew(payload) {
+    let cat = payload.category;
+    if (cat === "공지" && !isAdmin) {
+      alert("공지 글은 관리자만 작성할 수 있습니다.");
+      cat = "일반";
+    }
+
     const post = normalizePost({
       ...payload,
+      category: cat,
       id: safeUUID(),
       createdAt: Date.now(),
       updatedAt: Date.now(),
       likedBy: [],
+      // 공지는 자동 고정
+      pinned: cat === "공지" ? true : false,
     });
     setPosts((prev) => [post, ...prev]);
     setShowEditor(false);
   }
+
   function tryDelete(id) {
     const ok = confirm("정말 삭제하시겠습니까?");
     if (!ok) return false;
     setPosts((prev) => prev.filter((p) => p.id !== id));
     return true;
   }
+
   function toggleLike(id) {
     setPosts((prev) =>
       prev.map((p) => {
@@ -688,13 +771,22 @@ export default function Board() {
       })
     );
   }
+
+  /* 🔐 관리자만 일반 글 고정 토글 (공지에는 영향 X) */
   function togglePin(id) {
+    if (!isAdmin) {
+      alert("관리자만 글을 고정할 수 있습니다.");
+      return;
+    }
     setPosts((prev) =>
-      prev.map((p) =>
-        p.id === id ? { ...p, pinned: !p.pinned, updatedAt: Date.now() } : p
-      )
+      prev.map((p) => {
+        if (p.id !== id) return p;
+        if (p.category === "공지") return p; // 공지는 항상 고정
+        return { ...p, pinned: !p.pinned, updatedAt: Date.now() };
+      })
     );
   }
+
   function addComment(postId, payload) {
     setPosts((prev) =>
       prev.map((p) =>
@@ -721,6 +813,28 @@ export default function Board() {
     );
   }
 
+  /* 🔐 관리자 로그인/로그아웃 */
+  function handleAdminLogin() {
+    const pw = prompt("관리자 비밀번호를 입력하세요.");
+    if (!pw) return;
+    if (hashLite(pw.trim()) === ADMIN_PASSWORD_HASH) {
+      try {
+        localStorage.setItem(ADMIN_FLAG_KEY, "1");
+      } catch {}
+      setIsAdmin(true);
+      alert("관리자 모드가 활성화되었습니다.");
+    } else {
+      alert("비밀번호가 올바르지 않습니다.");
+    }
+  }
+  function handleAdminLogout() {
+    try {
+      localStorage.removeItem(ADMIN_FLAG_KEY);
+    } catch {}
+    setIsAdmin(false);
+    alert("관리자 모드가 해제되었습니다.");
+  }
+
   const location = useLocation();
   const matchDetail = /\/board\/[^\/?#]+/.test(location.pathname);
   if (matchDetail) {
@@ -741,6 +855,7 @@ export default function Board() {
             onPin={togglePin}
             onAddComment={addComment}
             onDeleteComment={deleteComment}
+            isAdmin={isAdmin}
           />
         </div>
       </div>
@@ -756,7 +871,12 @@ export default function Board() {
               Promptree 게시판
             </h1>
           </div>
-          <Editor mode="new" onCancel={() => setShowEditor(false)} onSubmit={submitNew} />
+          <Editor
+            mode="new"
+            onCancel={() => setShowEditor(false)}
+            onSubmit={submitNew}
+            isAdmin={isAdmin}
+          />
         </div>
       </div>
     );
@@ -815,6 +935,15 @@ export default function Board() {
               className="h-9 px-4 rounded-xl bg-white text-sm font-medium text-black hover:bg-zinc-200"
             >
               글쓰기
+            </button>
+
+            {/* 관리자 로그인/해제 */}
+            <button
+              type="button"
+              onClick={isAdmin ? handleAdminLogout : handleAdminLogin}
+              className="px-2 py-1.5 rounded-xl border border-[#2A2A33] bg-[#101018] text-[11px] text-zinc-400 hover:bg-zinc-900"
+            >
+              {isAdmin ? "관리자 해제" : "관리자 로그인"}
             </button>
           </div>
         </div>

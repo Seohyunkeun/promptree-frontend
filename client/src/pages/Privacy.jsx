@@ -6,9 +6,7 @@ export default function Privacy() {
         개인정보 처리방침
       </h1>
       <p className="text-sm text-zinc-400 mb-8">
-        Promptree는 가능한 한 최소한의 개인정보만을 처리하는 것을 목표로
-        합니다. 아래 내용은 서비스 운영을 위한 기본 방침 예시이며, 실제
-        오픈 전 반드시 서비스 실제 기능에 맞게 수정·보완해야 합니다.
+  
       </p>
 
       <div className="space-y-8 text-sm leading-6">

@@ -21,6 +21,30 @@ const TARGETS = [
   { id: "sora", label: "OpenAI Sora 2" },
 ];
 
+// 타깃별 설명/플레이스홀더
+const TARGET_META = {
+  gemini: {
+    subtitle: "정적 이미지 · 묘사 중심",
+    placeholder:
+      "예) 비 오는 네온 시티 골목, 우산을 든 인물의 클로즈업, 젖은 바닥에 반사된 불빛, 시네마틱 무드",
+  },
+  veo: {
+    subtitle: "비디오 · 샷 플랜/카메라 동선",
+    placeholder:
+      "예) 카메라가 네온 숲 사이를 천천히 날아가며, 나무에서 흘러나오는 빛과 입자가 흐르는 장면",
+  },
+  mj: {
+    subtitle: "/imagine 파라미터 · 스타일",
+    placeholder:
+      "예) futuristic cyberpunk city street at night, neon lights, rainy reflections, cinematic, highly detailed",
+  },
+  sora: {
+    subtitle: "클립 블루프린트 · 오디오 싱크",
+    placeholder:
+      "예) dusk city street, one person walking slowly toward camera, traffic lights in the background, cinematic slow motion",
+  },
+};
+
 const STYLE_TAGS = [
   "시네마틱 구도",
   "필름 그레인",
@@ -271,9 +295,14 @@ export default function Generator() {
     ].join("\n");
   };
 
-  // 기존 onGenerate에서 쓰는 버전 (현재 상태 기반)
+  // 현재 상태 기반
   const buildPrompt = () =>
-    buildPromptFor({ targetArg: target, stageArg: stage, inputArg: input, tagsArg: tags });
+    buildPromptFor({
+      targetArg: target,
+      stageArg: stage,
+      inputArg: input,
+      tagsArg: tags,
+    });
 
   const applySample = (sampleId) => {
     const s = SAMPLE_SET.find((x) => x.id === sampleId);
@@ -296,7 +325,6 @@ export default function Generator() {
     const nextInput = s.text;
     const nextTags = s.tags || [];
 
-    // 상태도 같이 맞춰주기
     setActiveSample(sampleId);
     setTarget(nextTarget);
     setStage(nextStage);
@@ -311,7 +339,12 @@ export default function Generator() {
       tagsArg: nextTags,
     });
     setOutput(p);
-    const rec = { id: Date.now(), target: nextTarget, text: p, at: prettyDate() };
+    const rec = {
+      id: Date.now(),
+      target: nextTarget,
+      text: p,
+      at: prettyDate(),
+    };
     const nextHistory = [rec, ...history].slice(0, MAX_HISTORY);
     setHistory(nextHistory);
     localStorage.setItem(LS_HISTORY, JSON.stringify(nextHistory));
@@ -372,9 +405,14 @@ export default function Generator() {
 
   const currentTargetLabel =
     TARGETS.find((x) => x.id === target)?.label || "TARGET";
+  const currentTargetMeta = TARGET_META[target] || {};
+  const inputPlaceholder =
+    currentTargetMeta.placeholder ||
+    "예) 비 오는 네온 시티 골목, 우산을 든 인물의 클로즈업, 젖은 바닥에 반사된 불빛, 시네마틱 무드";
 
   return (
-    <div className="space-y-6">
+    // 🔥 여기 컨테이너만 추가해 준 거
+    <div className="max-w-6xl mx-auto px-4 py-10 space-y-6">
       {/* 상단 헤더 */}
       <header className="flex items-center justify-between gap-4">
         <div>
@@ -401,12 +439,12 @@ export default function Generator() {
       <div className="grid gap-4 lg:grid-cols-[260px,1fr]">
         {/* 좌측: 제어 패널 */}
         <aside className="space-y-4">
-          {/* 타깃 선택 (칩 형태, 높이 줄이기) */}
+          {/* 타깃 선택 */}
           <section className="rounded-2xl border border-zinc-800 bg-zinc-950/60 backdrop-blur-sm p-3">
             <div className="text-xs uppercase tracking-wide text-zinc-400 mb-2">
               타깃
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2 mb-2">
               {TARGETS.map((t) => (
                 <button
                   key={t.id}
@@ -422,6 +460,10 @@ export default function Generator() {
                 </button>
               ))}
             </div>
+            <p className="text-[11px] text-zinc-500">
+              {currentTargetMeta.subtitle ||
+                "타깃에 따라 프롬프트 포맷이 자동으로 바뀝니다."}
+            </p>
           </section>
 
           {/* 단계 탭 */}
@@ -503,8 +545,13 @@ export default function Generator() {
             {/* 탭 헤더 */}
             <div className="px-4 pt-3 border-b border-zinc-800/80">
               <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-1 text-xs text-zinc-400">
+                <div className="flex flex-col gap-0.5 text-xs text-zinc-400">
                   <span>{currentTargetLabel}</span>
+                  {currentTargetMeta.subtitle && (
+                    <span className="text-[11px] text-zinc-500">
+                      {currentTargetMeta.subtitle}
+                    </span>
+                  )}
                 </div>
                 <div className="text-[11px] text-zinc-500 text-right">
                   <div>입력 글자수: {charCount}</div>
@@ -547,7 +594,7 @@ export default function Generator() {
                     onChange={(e) => setInput(e.target.value)}
                     rows={7}
                     className="w-full bg-transparent outline-none text-[15px] leading-7 placeholder:text-zinc-600 border border-zinc-800/80 rounded-xl px-3 py-2 max-h-[220px] scrollbar-thin"
-                    placeholder="예) 비 오는 네온 시티 골목, 우산을 든 인물의 클로즈업, 젖은 바닥에 반사된 불빛, 시네마틱 무드"
+                    placeholder={inputPlaceholder}
                   />
                   <div>
                     <div className="flex items-center justify-between mb-2">

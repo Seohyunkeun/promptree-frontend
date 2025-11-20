@@ -6,8 +6,7 @@ export default function Policy() {
         이용약관
       </h1>
       <p className="text-sm text-zinc-400 mb-8">
-        이 문서는 Promptree 서비스를 이용하기 위한 기본적인 약관 초안입니다.
-        실제 서비스 오픈 전, 반드시 법률 전문가의 검토를 거친 뒤 수정·보완하세요.
+   
       </p>
 
       <div className="space-y-8 text-sm leading-6">
@@ -125,7 +124,7 @@ export default function Policy() {
             <li>
               이용자는 자신이 작성한 게시물을 서비스 홍보·운영을 위해
               서비스 내·외부에서 노출·편집·복제하는 것에 동의한 것으로
-              봅니다. (구체적인 범위는 실제 운영 정책에 맞게 조정하세요.)
+              봅니다.
             </li>
           </ul>
         </section>

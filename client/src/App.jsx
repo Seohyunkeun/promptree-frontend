@@ -6,6 +6,8 @@ import Board from "./pages/Board";
 import Policy from "./pages/Policy";
 import Privacy from "./pages/Privacy";
 import NotFound from "./pages/NotFound";
+import Login from "./pages/Login";
+import Join from "./pages/Join";
 
 export default function App() {
   const year = new Date().getFullYear();
@@ -65,11 +67,20 @@ export default function App() {
             </NavLink>
           </nav>
 
-          {/* 우측 액션 (나중에 로그인 붙이면 여기) */}
+          {/* 우측 액션 */}
           <div className="flex items-center gap-2">
-            <button className="hidden sm:inline-flex h-8 px-3 rounded-xl border border-zinc-800 text-[11px] text-zinc-300 hover:bg-zinc-900">
-              로그인/회원가입(준비중)
-            </button>
+            <Link
+              to="/login"
+              className="hidden sm:inline-flex items-center justify-center h-8 px-3 rounded-xl border border-zinc-800 text-[11px] text-zinc-300 hover:bg-zinc-900 leading-none"
+            >
+              로그인
+            </Link>
+            <Link
+              to="/join"
+              className="inline-flex items-center justify-center h-8 px-4 rounded-xl bg-white text-[11px] font-medium text-black hover:bg-zinc-200 leading-none"
+            >
+              회원가입
+            </Link>
           </div>
         </div>
       </header>
@@ -81,6 +92,8 @@ export default function App() {
           <Route path="/generator" element={<Generator />} />
           {/* /board 와 /board/:id 모두 Board가 처리 */}
           <Route path="/board/*" element={<Board />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/join" element={<Join />} />
           <Route path="/policy" element={<Policy />} />
           <Route path="/privacy" element={<Privacy />} />
           <Route path="*" element={<NotFound />} />
