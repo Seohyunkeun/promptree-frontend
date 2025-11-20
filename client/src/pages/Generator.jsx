@@ -31,24 +31,65 @@ const STYLE_TAGS = [
   "얕은 심도",
 ];
 
+// 타깃/단계/프리셋까지 포함한 샘플 세트
 const SAMPLE_SET = [
+  // GEMINI
   {
-    id: "anime-figure",
-    label: "피규어 상품컷",
-    text: "현대적인 실내 작업실, 컴퓨터 책상 위에 하이엔드 PVC 피규어가 전시되어 있음. 옆에는 피규어 일러스트가 인쇄된 박스와 3D 모델링 화면이 보인다.",
+    id: "gemini-neon-city",
+    label: "네온 시티 인물샷",
+    target: "gemini",
+    stage: "시네마틱",
+    preset: "사진(일몰)",
+    text: "비가 막 그친 도쿄 네온 골목, 젖은 바닥에 간판 불빛이 반사되고, 우산을 든 인물이 실루엣으로 서 있음. 카메라는 허리 위 클로즈업, 시네마틱 무드.",
+    tags: ["네온 조명", "얕은 심도", "시네마틱 구도"],
+  },
+  {
+    id: "gemini-figure-studio",
+    label: "피규어 스튜디오 샷",
+    target: "gemini",
+    stage: "라이팅",
+    preset: "제품",
+    text: "심플한 흰 배경 위에 하이엔드 PVC 피규어 하나가 중앙에 세워져 있고, 부드러운 상단 소프트 라이트와 약한 그림자가 드리워져 있는 제품 촬영.",
     tags: ["스튜디오 조명", "부드러운 빛 번짐"],
   },
+  // MJ
   {
-    id: "fashion",
-    label: "패션 화보",
-    text: "야외 석양 배경에서 인물 세 명이 걷고 있는 패션 화보, 따뜻한 골든 아워, 바람에 휘날리는 의상 디테일.",
-    tags: ["시네마틱 구도", "필름 그레인"],
+    id: "mj-fashion-lookbook",
+    label: "야외 패션 룩북",
+    target: "mj",
+    stage: "클래식",
+    preset: "사진(정장)",
+    text: "석양빛이 비치는 옥상 위, 서로 다른 스타일의 수트를 입은 인물 세 명이 걸어가며 웃고 있는 패션 화보. 바람에 휘날리는 옷감 디테일, 따뜻한 골든 아워 톤.",
+    tags: ["필름 그레인", "시네마틱 구도"],
   },
   {
-    id: "city-neon",
-    label: "네온 시티",
-    text: "비가 막 그친 도쿄 골목, 젖은 아스팔트에 네온사인이 반사되고, 우산을 든 인물이 실루엣으로 서 있음.",
-    tags: ["네온 조명", "얕은 심도"],
+    id: "mj-character-portrait",
+    label: "캐릭터 인물 일러스트",
+    target: "mj",
+    stage: "프라임",
+    preset: "사진(정장)",
+    text: "미래 도시 네온 배경 앞에 서 있는 여성 사이버펑크 캐릭터, 짧은 헤어와 홀로그램 재킷, 정면 상반신 포즈, 강렬한 눈빛과 대비 높은 색감.",
+    tags: ["네온 조명"],
+  },
+  // VEO
+  {
+    id: "veo-emotion-clinic",
+    label: "미래형 감정 클리닉",
+    target: "veo",
+    stage: "시네마틱",
+    preset: "사진(일몰)",
+    text: "감정을 데이터로 업로드하는 미래형 정신과 대기실, 환자들이 투명한 캡슐 의자에 앉아 있고, 벽면엔 감정 그래프가 떠 있는 홀로그램 스크린이 줄지어 있음.",
+    tags: ["시네마틱 구도", "아날로그 필름 느낌"],
+  },
+  // SORA
+  {
+    id: "sora-slow-walk",
+    label: "슬로우 워킹 시네마틱",
+    target: "sora",
+    stage: "시네마틱",
+    preset: "사진(일몰)",
+    text: "석양이 지는 도심 거리, 한 인물이 카메라 쪽으로 천천히 걸어오며 주변 차와 사람들은 살짝 흐릿하게 움직이는 슬로우 모션 느낌.",
+    tags: ["필름 그레인", "부드러운 빛 번짐"],
   },
 ];
 
@@ -109,12 +150,10 @@ export default function Generator() {
     }
 
     if (presetParam) {
-      // 프리셋 이름이 URL로 들어온 경우
       applyPreset(presetParam);
     }
 
     if (sampleParam) {
-      // 샘플 id가 URL로 들어온 경우
       applySample(sampleParam);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -158,21 +197,14 @@ export default function Generator() {
     }
   };
 
-  const applySample = (sampleId) => {
-    const s = SAMPLE_SET.find((x) => x.id === sampleId);
-    if (!s) return;
-    setActiveSample(sampleId);
-    setInput(s.text);
-    setTags(s.tags);
-    setActiveTab("input");
-  };
+  // 공통 프롬프트 빌더 (상태 대신 인자로 받는 버전)
+  const buildPromptFor = ({ targetArg, stageArg, inputArg, tagsArg }) => {
+    const user = (inputArg || "").trim();
+    const style =
+      tagsArg && tagsArg.length ? `\nSTYLE: ${tagsArg.join(", ")}` : "";
+    const stageLine = stageArg ? `STAGE: ${stageArg}` : "";
 
-  const buildPrompt = () => {
-    const user = input.trim();
-    const style = tags.length ? `\nSTYLE: ${tags.join(", ")}` : "";
-    const stageLine = stage ? `STAGE: ${stage}` : "";
-
-    if (target === "gemini") {
+    if (targetArg === "gemini") {
       return [
         "TARGET: GOOGLE GEMINI 2.5 FLASH IMAGE",
         stageLine,
@@ -190,7 +222,7 @@ export default function Generator() {
         style,
       ].join("\n");
     }
-    if (target === "veo") {
+    if (targetArg === "veo") {
       return [
         "TARGET: GOOGLE VEO 3.1 (VIDEO)",
         stageLine,
@@ -211,10 +243,12 @@ export default function Generator() {
         style,
       ].join("\n");
     }
-    if (target === "mj") {
+    if (targetArg === "mj") {
       return [
         "/imagine",
-        `${user || "cinematic portrait, soft rim light"}, ${tags.join(", ")}`,
+        `${user || "cinematic portrait, soft rim light"}, ${
+          tagsArg?.join(", ") || ""
+        }`,
         "--ar 3:4 --v 7 --style raw",
       ].join(" ");
     }
@@ -235,6 +269,61 @@ export default function Generator() {
       "NEGATIVE: excessive shake, text overlay, text, heavy compression artifacts",
       style,
     ].join("\n");
+  };
+
+  // 기존 onGenerate에서 쓰는 버전 (현재 상태 기반)
+  const buildPrompt = () =>
+    buildPromptFor({ targetArg: target, stageArg: stage, inputArg: input, tagsArg: tags });
+
+  const applySample = (sampleId) => {
+    const s = SAMPLE_SET.find((x) => x.id === sampleId);
+    if (!s) return;
+    setActiveSample(sampleId);
+    if (s.target) setTarget(s.target);
+    if (s.stage) setStage(s.stage);
+    if (s.preset) setPreset(s.preset);
+    setInput(s.text);
+    setTags(s.tags || []);
+    setActiveTab("input");
+  };
+
+  const applySampleAndGenerate = (sampleId) => {
+    const s = SAMPLE_SET.find((x) => x.id === sampleId);
+    if (!s) return;
+
+    const nextTarget = s.target || target;
+    const nextStage = s.stage || stage;
+    const nextInput = s.text;
+    const nextTags = s.tags || [];
+
+    // 상태도 같이 맞춰주기
+    setActiveSample(sampleId);
+    setTarget(nextTarget);
+    setStage(nextStage);
+    if (s.preset) setPreset(s.preset);
+    setInput(nextInput);
+    setTags(nextTags);
+
+    const p = buildPromptFor({
+      targetArg: nextTarget,
+      stageArg: nextStage,
+      inputArg: nextInput,
+      tagsArg: nextTags,
+    });
+    setOutput(p);
+    const rec = { id: Date.now(), target: nextTarget, text: p, at: prettyDate() };
+    const nextHistory = [rec, ...history].slice(0, MAX_HISTORY);
+    setHistory(nextHistory);
+    localStorage.setItem(LS_HISTORY, JSON.stringify(nextHistory));
+    setActiveTab("result");
+    setTimeout(() => {
+      if (outRef.current) {
+        outRef.current.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+        });
+      }
+    }, 0);
   };
 
   const onGenerate = () => {
@@ -525,26 +614,70 @@ export default function Generator() {
               <div className="text-xs uppercase tracking-wide text-zinc-400">
                 샘플 프롬프트
               </div>
+              <div className="text-[11px] text-zinc-500">
+                카드 클릭: 불러오기 · 버튼: 바로 사용
+              </div>
             </div>
             <div className="flex gap-2 overflow-x-auto pb-1">
               {SAMPLE_SET.map((s) => (
-                <button
+                <div
                   key={s.id}
+                  role="button"
+                  tabIndex={0}
                   onClick={() => applySample(s.id)}
-                  className={`min-w-[140px] max-w-[180px] text-left rounded-xl border text-[13px] p-3 transition
+                  className={`min-w-[180px] max-w-[220px] text-left rounded-xl border text-[13px] p-3 transition cursor-pointer
                     ${
                       activeSample === s.id
                         ? "border-zinc-100 bg-white text-black"
                         : "border-zinc-800 bg-zinc-900/80 hover:bg-zinc-800 text-zinc-200"
                     }`}
                 >
-                  <div className="font-medium mb-1 line-clamp-1">
-                    {s.label}
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="font-medium line-clamp-1">{s.label}</div>
+                    <span className="text-[10px] text-zinc-500">
+                      {
+                        TARGETS.find((t) => t.id === s.target)?.label.split(
+                          " "
+                        )[0]
+                      }
+                    </span>
                   </div>
-                  <div className="text-[11px] text-zinc-300 leading-5 line-clamp-3">
+                  <div className="text-[11px] text-zinc-300 leading-5 line-clamp-3 mb-2">
                     {s.text}
                   </div>
-                </button>
+                  <div className="flex flex-wrap gap-1 mb-2">
+                    {s.tags?.slice(0, 3).map((tag) => (
+                      <span
+                        key={tag}
+                        className="rounded-full bg-zinc-800/80 px-2 py-0.5 text-[10px] text-zinc-300"
+                      >
+                        #{tag}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="flex gap-1">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        applySample(s.id);
+                      }}
+                      className="flex-1 h-7 rounded-lg border border-zinc-700 bg-zinc-900/80 text-[11px] hover:bg-zinc-800"
+                    >
+                      불러오기
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        applySampleAndGenerate(s.id);
+                      }}
+                      className="flex-1 h-7 rounded-lg bg-white text-black text-[11px] hover:bg-zinc-200"
+                    >
+                      바로 생성
+                    </button>
+                  </div>
+                </div>
               ))}
             </div>
           </div>
