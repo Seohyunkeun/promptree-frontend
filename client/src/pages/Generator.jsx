@@ -1,5 +1,6 @@
 // client/src/pages/Generator.jsx
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 
 /* ─────────────────────────────────────────────
    Promptree 생성기 (압축 레이아웃 + 타깃 칩 버전)
@@ -60,6 +61,8 @@ const prettyDate = (d = new Date()) =>
 const estimateTokens = (t = "") => Math.ceil((t || "").length / 4);
 
 export default function Generator() {
+  const [searchParams] = useSearchParams();
+
   const [stage, setStage] = useState("라이팅");
   const [preset, setPreset] = useState("사진(일몰)");
   const [target, setTarget] = useState(TARGETS[0].id);
@@ -90,6 +93,33 @@ export default function Generator() {
     }
   }, []);
 
+  // URL 쿼리 → 상태 반영 (target / stage / preset / sample)
+  useEffect(() => {
+    const targetParam = searchParams.get("target");
+    const stageParam = searchParams.get("stage");
+    const presetParam = searchParams.get("preset");
+    const sampleParam = searchParams.get("sample");
+
+    if (targetParam && TARGETS.some((x) => x.id === targetParam)) {
+      setTarget(targetParam);
+    }
+
+    if (stageParam) {
+      setStage(stageParam);
+    }
+
+    if (presetParam) {
+      // 프리셋 이름이 URL로 들어온 경우
+      applyPreset(presetParam);
+    }
+
+    if (sampleParam) {
+      // 샘플 id가 URL로 들어온 경우
+      applySample(sampleParam);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
   // draft save
   useEffect(() => {
     localStorage.setItem(
@@ -114,11 +144,17 @@ export default function Generator() {
   const applyPreset = (name) => {
     setPreset(name);
     if (name === "사진(일몰)") {
-      setInput("네온 간판이 있는 도쿄 골목, 노을 반사, 인물 클로즈업, 시네마틱");
+      setInput(
+        "네온 간판이 있는 도쿄 골목, 노을 반사, 인물 클로즈업, 시네마틱"
+      );
     } else if (name === "사진(정장)") {
-      setInput("광고 촬영 룩북, 다크 수트, 하이라이트 헤어, 스튜디오 소프트박스");
+      setInput(
+        "광고 촬영 룩북, 다크 수트, 하이라이트 헤어, 스튜디오 소프트박스"
+      );
     } else if (name === "제품") {
-      setInput("무선 이어폰 제품컷, 흰 배경, 상단 소프트 라이트, 그림자 살짝");
+      setInput(
+        "무선 이어폰 제품컷, 흰 배경, 상단 소프트 라이트, 그림자 살짝"
+      );
     }
   };
 
@@ -211,7 +247,10 @@ export default function Generator() {
     setActiveTab("result");
     setTimeout(() => {
       if (outRef.current) {
-        outRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+        outRef.current.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+        });
       }
     }, 0);
   };
@@ -556,10 +595,7 @@ export default function Generator() {
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-xs text-zinc-400">{h.at}</span>
                       <span className="text-xs text-zinc-400">
-                        {
-                          TARGETS.find((x) => x.id === h.target)
-                            ?.label
-                        }
+                        {TARGETS.find((x) => x.id === h.target)?.label}
                       </span>
                     </div>
                     <pre className="whitespace-pre-wrap text-[13px] leading-6 text-zinc-100">
