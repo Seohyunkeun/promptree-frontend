@@ -221,77 +221,52 @@ export default function Generator() {
     }
   };
 
-  // 공통 프롬프트 빌더 (상태 대신 인자로 받는 버전)
+  // 🔥 공통 프롬프트 빌더: 결과는 "프롬프트만" 나오게 정리
   const buildPromptFor = ({ targetArg, stageArg, inputArg, tagsArg }) => {
     const user = (inputArg || "").trim();
-    const style =
-      tagsArg && tagsArg.length ? `\nSTYLE: ${tagsArg.join(", ")}` : "";
-    const stageLine = stageArg ? `STAGE: ${stageArg}` : "";
+    const stageText = stageArg ? `, ${stageArg}` : "";
+    const styleTagsText =
+      tagsArg && tagsArg.length ? `, ${tagsArg.join(", ")}` : "";
 
     if (targetArg === "gemini") {
+      // Gemini 2.5: 포토리얼 이미지 프롬프트만
+      const base =
+        user ||
+        "cinematic portrait, neon city alley, reflections on wet ground";
       return [
-        "TARGET: GOOGLE GEMINI 2.5 FLASH IMAGE",
-        stageLine,
-        "",
-        "GUIDE:",
-        "- Photorealistic detail with clear lighting & lens description.",
-        "- Avoid trademarks or copyrighted character names.",
-        "- Return ENGLISH only.",
-        "",
-        `CONTENT: ${user || "(describe scene in detail)"}`,
-        "LENS: 50mm / ISO 200 / f1.8 (if portrait)",
-        "LIGHT: softbox key, rim light, subtle fill, ambient practicals",
-        "COMPOSITION: rule of thirds, shallow depth of field",
-        "NEGATIVE: watermark, logo, overexposed highlights, deformed hands",
-        style,
+        `${base}${stageText}, photorealistic, highly detailed, 50mm lens, ISO 200, f1.8, softbox key light, rim light, subtle fill, ambient practical lights, shallow depth of field, rule of thirds${styleTagsText}`,
+        "Negative: watermark, logo, text, overexposed highlights, deformed hands, extra fingers, distorted face",
       ].join("\n");
     }
+
     if (targetArg === "veo") {
+      // Veo 3.1: 비디오 샷 플랜만 (메타 라벨 제거)
+      const base =
+        user ||
+        "camera slowly flying through a neon forest, particles of light drifting in the air";
       return [
-        "TARGET: GOOGLE VEO 3.1 (VIDEO)",
-        stageLine,
-        "",
-        "BLUEPRINT:",
-        "- LENGTH: 6–8 seconds, 24fps",
-        "- CAMERA: slow dolly-in and soft pan",
-        "- SHOTS: 1–2 cinematic shots, smooth motion",
-        "",
-        `DESCRIPTION: ${user || "(what should the video show?)"}`,
-        "",
-        "SHOT PLAN:",
-        "  • SHOT 01 — 2s — Wide establishing shot, slow dolly-in",
-        "  • SHOT 02 — 4s — Medium hero shot, gentle pan",
-        "",
-        "QUALITY: cinematic, coherent lighting and motion",
-        "SAFETY: no trademark, no nudity, no graphic content.",
-        style,
+        `Cinematic 6–8 second video at 24fps${stageText}. Scene: ${base}${styleTagsText}.`,
+        "Shot 01 (2s): wide establishing shot with a slow dolly-in through the environment.",
+        "Shot 02 (4–6s): medium hero shot with a gentle pan that follows the main subject.",
+        "Keep motion smooth and coherent lighting. No trademarks, no nudity, no graphic or violent content.",
       ].join("\n");
     }
+
     if (targetArg === "mj") {
-      return [
-        "/imagine",
-        `${user || "cinematic portrait, soft rim light"}, ${
-          tagsArg?.join(", ") || ""
-        }`,
-        "--ar 3:4 --v 7 --style raw",
-      ].join(" ");
+      // Midjourney V7: /imagine 한 줄 프롬프트
+      const content =
+        user || "cinematic portrait, soft rim light, highly detailed";
+      return `/imagine ${content}${styleTagsText} --ar 3:4 --v 7 --style raw`;
     }
-    // sora
+
+    // Sora 2: 8초 시네마틱 비디오 설명만
+    const base =
+      user ||
+      "dusk city street, one person walking slowly toward camera, traffic lights glowing in the background";
     return [
-      "TARGET: OPENAI SORA 2 (VIDEO)",
-      stageLine,
-      "",
-      "INSTRUCTIONS:",
-      "- Describe scene, motion, lighting, and camera as objective facts.",
-      "- Maintain physical consistency, no teleporting or impossible cuts.",
-      "",
-      `DESCRIPTION: ${user || "(scene description)"}`,
-      "",
-      "TIMING: 8 seconds, 24fps",
-      "CAMERA: handheld slight sway, 35mm look",
-      "AUDIO: none",
-      "NEGATIVE: excessive shake, text overlay, text, heavy compression artifacts",
-      style,
+      `8 second cinematic video at 24fps${stageText}. Scene: ${base}${styleTagsText}.`,
+      "Camera: gentle handheld sway with a 35mm look, smooth forward movement toward the subject.",
+      "No excessive shake, no text overlay, no logos, no heavy compression artifacts.",
     ].join("\n");
   };
 
@@ -364,8 +339,8 @@ export default function Generator() {
     setOutput(p);
     const rec = { id: Date.now(), target, text: p, at: prettyDate() };
     const next = [rec, ...history].slice(0, MAX_HISTORY);
-    setHistory(next);
     localStorage.setItem(LS_HISTORY, JSON.stringify(next));
+    setHistory(next);
     setActiveTab("result");
     setTimeout(() => {
       if (outRef.current) {
@@ -411,7 +386,7 @@ export default function Generator() {
     "예) 비 오는 네온 시티 골목, 우산을 든 인물의 클로즈업, 젖은 바닥에 반사된 불빛, 시네마틱 무드";
 
   return (
-    // 🔥 여기 컨테이너만 추가해 준 거
+    // 🔥 컨테이너
     <div className="max-w-6xl mx-auto px-4 py-10 space-y-6">
       {/* 상단 헤더 */}
       <header className="flex items-center justify-between gap-4">
@@ -427,7 +402,7 @@ export default function Generator() {
           className="h-9 px-3 rounded-xl border border-zinc-800 bg-zinc-900/70 hover:bg-zinc-800 text-sm"
           onClick={() =>
             alert(
-              "사용 가이드\n\n1) 왼쪽에서 타깃·프리셋·단계를 고르고\n2) [입력] 탭에 장면을 적은 뒤\n3) [프롬프트 생성] 버튼을 누르세요.\n\n[결과] 탭에서 타깃에 맞게 포맷팅된 프롬프트를 확인하고 복사할 수 있습니다."
+              "사용 가이드\n\n1) 왼쪽에서 타깃·프리셋·단계를 고르고\n2) [입력] 탭에 장면을 적은 뒤\n3) [프롬프트 생성] 버튼을 누르세요.\n\n[결과] 탭에서 깔끔한 프롬프트를 확인하고 복사할 수 있습니다."
             )
           }
         >
