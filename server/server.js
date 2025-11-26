@@ -88,7 +88,9 @@ app.post("/api/admin/verify", (req, res) => {
   if (password === ADMIN_PASSWORD) {
     return res.json({ ok: true });
   }
-  return res.status(401).json({ ok: false, error: "비밀번호가 올바르지 않습니다." });
+  return res
+    .status(401)
+    .json({ ok: false, error: "비밀번호가 올바르지 않습니다." });
 });
 
 // ===== 게시글 목록 =====
@@ -167,11 +169,8 @@ app.post("/api/posts", (req, res) => {
       comments: JSON.stringify([]),
     });
 
-    // 전체 목록 재조회해서 반환 (프론트에서 그대로 setPosts)
     const rows = db
-      .prepare(
-        "SELECT * FROM posts ORDER BY pinned DESC, updatedAt DESC"
-      )
+      .prepare("SELECT * FROM posts ORDER BY pinned DESC, updatedAt DESC")
       .all();
     const posts = rows.map(rowToPost);
 
@@ -182,18 +181,45 @@ app.post("/api/posts", (req, res) => {
   }
 });
 
-// ===== 게시글 삭제 =====
+// ===== 게시글 삭제 (비밀번호/관리자 검증) =====
 app.delete("/api/posts/:id", (req, res) => {
-  const { id } = req.params;
-  db.prepare("DELETE FROM posts WHERE id = ?").run(id);
+  try {
+    const { id } = req.params;
+    const { pwHash = "", adminPassword } = req.body || {};
 
-  const rows = db
-    .prepare(
-      "SELECT * FROM posts ORDER BY pinned DESC, updatedAt DESC"
-    )
-    .all();
-  const posts = rows.map(rowToPost);
-  res.json({ posts });
+    const row = db.prepare("SELECT * FROM posts WHERE id = ?").get(id);
+    if (!row) {
+      return res.status(404).json({ error: "게시글을 찾을 수 없습니다." });
+    }
+
+    // 1) 관리자 비밀번호로 삭제 (관리자 모드)
+    if (adminPassword && adminPassword === ADMIN_PASSWORD) {
+      db.prepare("DELETE FROM posts WHERE id = ?").run(id);
+    } else {
+      // 2) 일반 사용자 비밀번호 검증
+      const savedPw = row.pwHash || "";
+
+      // 글에 비밀번호가 설정돼 있으면 반드시 일치해야 삭제
+      if (savedPw.length > 0) {
+        if (!pwHash || pwHash !== savedPw) {
+          return res
+            .status(403)
+            .json({ error: "비밀번호가 올바르지 않습니다." });
+        }
+      }
+      // 비밀번호가 없던 글이면 그냥 삭제 허용
+      db.prepare("DELETE FROM posts WHERE id = ?").run(id);
+    }
+
+    const rows = db
+      .prepare("SELECT * FROM posts ORDER BY pinned DESC, updatedAt DESC")
+      .all();
+    const posts = rows.map(rowToPost);
+    res.json({ posts });
+  } catch (err) {
+    console.error("DELETE /api/posts/:id error:", err);
+    res.status(500).json({ error: "게시글 삭제 중 서버 오류가 발생했습니다." });
+  }
 });
 
 // ===== 좋아요 토글 =====
@@ -237,9 +263,7 @@ app.post("/api/posts/:id/like", (req, res) => {
       updatedAt: now(),
     });
 
-    const updated = db
-      .prepare("SELECT * FROM posts WHERE id = ?")
-      .get(id);
+    const updated = db.prepare("SELECT * FROM posts WHERE id = ?").get(id);
 
     res.json({ post: rowToPost(updated) });
   } catch (err) {
@@ -255,7 +279,9 @@ app.post("/api/posts/:id/pin", (req, res) => {
     const { adminPassword } = req.body || {};
 
     if (adminPassword !== ADMIN_PASSWORD) {
-      return res.status(401).json({ error: "관리자 비밀번호가 올바르지 않습니다." });
+      return res
+        .status(401)
+        .json({ error: "관리자 비밀번호가 올바르지 않습니다." });
     }
 
     const row = db.prepare("SELECT * FROM posts WHERE id = ?").get(id);
@@ -277,9 +303,7 @@ app.post("/api/posts/:id/pin", (req, res) => {
       updatedAt: now(),
     });
 
-    const updated = db
-      .prepare("SELECT * FROM posts WHERE id = ?")
-      .get(id);
+    const updated = db.prepare("SELECT * FROM posts WHERE id = ?").get(id);
     res.json({ post: rowToPost(updated) });
   } catch (err) {
     console.error("POST /api/posts/:id/pin error:", err);
@@ -325,9 +349,7 @@ app.post("/api/posts/:id/comments", (req, res) => {
       updatedAt: now(),
     });
 
-    const updated = db
-      .prepare("SELECT * FROM posts WHERE id = ?")
-      .get(id);
+    const updated = db.prepare("SELECT * FROM posts WHERE id = ?").get(id);
     res.json({ post: rowToPost(updated) });
   } catch (err) {
     console.error("POST /api/posts/:id/comments error:", err);
@@ -335,7 +357,7 @@ app.post("/api/posts/:id/comments", (req, res) => {
   }
 });
 
-// ===== 댓글 삭제 (비번 검증은 나중에) =====
+// ===== 댓글 삭제 =====
 app.delete("/api/posts/:id/comments/:cid", (req, res) => {
   try {
     const { id, cid } = req.params;
@@ -361,13 +383,46 @@ app.delete("/api/posts/:id/comments/:cid", (req, res) => {
       updatedAt: now(),
     });
 
-    const updated = db
-      .prepare("SELECT * FROM posts WHERE id = ?")
-      .get(id);
+    const updated = db.prepare("SELECT * FROM posts WHERE id = ?").get(id);
     res.json({ post: rowToPost(updated) });
   } catch (err) {
     console.error("DELETE /api/posts/:id/comments/:cid error:", err);
     res.status(500).json({ error: "댓글 삭제 중 서버 오류" });
+  }
+});
+
+// ===== 조회수 증가 (한 번 호출당 +1) =====
+app.post("/api/posts/:id/view", (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const row = db.prepare("SELECT * FROM posts WHERE id = ?").get(id);
+    if (!row) {
+      return res
+        .status(404)
+        .json({ error: "게시글을 찾을 수 없습니다." });
+    }
+
+    const views = (row.views || 0) + 1;
+
+    db.prepare(
+      `
+      UPDATE posts
+      SET views = @views,
+          updatedAt = @updatedAt
+      WHERE id = @id
+    `
+    ).run({
+      id,
+      views,
+      updatedAt: now(),
+    });
+
+    const updated = db.prepare("SELECT * FROM posts WHERE id = ?").get(id);
+    res.json({ post: rowToPost(updated) });
+  } catch (err) {
+    console.error("POST /api/posts/:id/view error:", err);
+    res.status(500).json({ error: "조회수 증가 중 서버 오류" });
   }
 });
 

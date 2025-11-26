@@ -6,7 +6,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 
 /* API base */
-const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:4000";
+const API_BASE = import.meta.env.VITE_API_BASE || "";
 
 // 간단 fetch 래퍼
 async function api(path, options = {}) {
@@ -42,6 +42,9 @@ const currentUserId = (() => {
   }
 })();
 
+/* 조회수 중복 방지용 (이 브라우저에서 이미 본 글 기록) */
+const VIEW_LS_KEY = "pt_board_viewed_posts_v1";
+
 const fmtDate = (ts) => {
   const d = new Date(ts);
   const yy = String(d.getFullYear()).slice(2);
@@ -73,7 +76,6 @@ function Editor({ onCancel, onSubmit, isAdmin, initialDraft }) {
     : ["일반", "프롬프트", "기타"];
 
   useEffect(() => {
-    // location state가 바뀌었을 때도 초기값 반영
     if (!initialDraft) return;
     if (initialDraft.category) setCategory(initialDraft.category);
     if (initialDraft.title) setTitle(initialDraft.title);
@@ -101,9 +103,7 @@ function Editor({ onCancel, onSubmit, isAdmin, initialDraft }) {
       const reader = new FileReader();
       reader.onload = () => {
         const item = {
-          id:
-            crypto.randomUUID?.() ??
-            Math.random().toString(36).slice(2),
+          id: crypto.randomUUID?.() ?? Math.random().toString(36).slice(2),
           name: f.name,
           dataUrl: String(reader.result),
         };
@@ -482,6 +482,36 @@ function DetailView({ isAdmin, adminPassword }) {
   const [post, setPost] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // 🔥 이 브라우저에서 이 글을 처음 볼 때만 조회수 +1
+  async function markViewOnce(postId) {
+    try {
+      if (typeof window === "undefined") return;
+
+      let viewed = [];
+      try {
+        viewed = JSON.parse(localStorage.getItem(VIEW_LS_KEY) || "[]");
+      } catch {
+        viewed = [];
+      }
+
+      if (viewed.includes(postId)) return;
+
+      const data = await api(`/api/posts/${postId}/view`, {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
+
+      if (data.post) {
+        setPost(data.post);
+      }
+
+      const next = [...viewed, postId];
+      localStorage.setItem(VIEW_LS_KEY, JSON.stringify(next));
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
   async function load() {
     if (!id) {
       alert("잘못된 접근입니다.");
@@ -499,6 +529,7 @@ function DetailView({ isAdmin, adminPassword }) {
         return;
       }
       setPost(found);
+      await markViewOnce(found.id);
     } catch (e) {
       console.error(e);
       alert("게시글을 불러오지 못했습니다.");
@@ -558,12 +589,35 @@ function DetailView({ isAdmin, adminPassword }) {
 
   async function handleDelete() {
     if (!window.confirm("정말 삭제하시겠습니까?")) return;
+
     try {
-      await api(`/api/posts/${post.id}`, { method: "DELETE" });
+      let body = {};
+
+      if (isAdmin && adminPassword) {
+        // 관리자 모드: 관리자 비번으로 삭제
+        body = { adminPassword };
+      } else {
+        // 일반 유저: 삭제용 비밀번호 입력받기
+        const pw = window.prompt(
+          "삭제용 비밀번호를 입력하세요.\n(글 작성 시 입력한 비밀번호)"
+        );
+        if (!pw || !pw.trim()) {
+          alert("비밀번호를 입력해야 삭제할 수 있습니다.");
+          return;
+        }
+        body = { pwHash: pw.trim() };
+      }
+
+      await api(`/api/posts/${post.id}`, {
+        method: "DELETE",
+        body: JSON.stringify(body),
+      });
+
+      alert("게시글이 삭제되었습니다.");
       nav("/board", { replace: true });
     } catch (e) {
       console.error(e);
-      alert("삭제 중 오류가 발생했습니다.");
+      alert(e.message || "삭제 중 오류가 발생했습니다.");
     }
   }
 
@@ -583,10 +637,9 @@ function DetailView({ isAdmin, adminPassword }) {
   async function handleDeleteComment(cid) {
     if (!window.confirm("댓글을 삭제하시겠습니까?")) return;
     try {
-      const data = await api(
-        `/api/posts/${post.id}/comments/${cid}`,
-        { method: "DELETE" }
-      );
+      const data = await api(`/api/posts/${post.id}/comments/${cid}`, {
+        method: "DELETE",
+      });
       setPost(data.post);
     } catch (e) {
       console.error(e);
@@ -786,7 +839,6 @@ function BoardListPage({
     return [...notices, ...others];
   }, [posts, query, onlyPinned, sortKey]);
 
-  // 🔥 여기: 성공 후 응답 내용 믿지 말고 무조건 다시 불러오기
   async function handleSubmitNew(payload) {
     try {
       const body = { ...payload };
@@ -804,6 +856,7 @@ function BoardListPage({
       });
 
       await loadPosts();
+
       setShowEditor(false);
 
       if (forceEditor) {
