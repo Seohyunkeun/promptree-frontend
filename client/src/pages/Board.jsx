@@ -6,7 +6,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 
 /* API base */
-const API_BASE = import.meta.env.VITE_API_BASE || "";
+const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:4000";
 
 // 간단 fetch 래퍼
 async function api(path, options = {}) {
@@ -56,14 +56,14 @@ const fmtDate = (ts) => {
    Editor
 ────────────────────────────────────── */
 
-function Editor({ onCancel, onSubmit, isAdmin }) {
-  const [category, setCategory] = useState("일반");
-  const [title, setTitle] = useState("");
-  const [author, setAuthor] = useState("");
+function Editor({ onCancel, onSubmit, isAdmin, initialDraft }) {
+  const [category, setCategory] = useState(initialDraft?.category || "일반");
+  const [title, setTitle] = useState(initialDraft?.title || "");
+  const [author, setAuthor] = useState(initialDraft?.author || "");
   const [pw, setPw] = useState("");
-  const [content, setContent] = useState("");
-  const [images, setImages] = useState([]);
-  const [videos, setVideos] = useState([]);
+  const [content, setContent] = useState(initialDraft?.content || "");
+  const [images, setImages] = useState(initialDraft?.images || []);
+  const [videos, setVideos] = useState(initialDraft?.videos || []);
 
   const fileImgRef = React.useRef(null);
   const fileVidRef = React.useRef(null);
@@ -71,6 +71,15 @@ function Editor({ onCancel, onSubmit, isAdmin }) {
   const CATEGORY_OPTIONS = isAdmin
     ? ["공지", "일반", "프롬프트", "기타"]
     : ["일반", "프롬프트", "기타"];
+
+  useEffect(() => {
+    // location state가 바뀌었을 때도 초기값 반영
+    if (!initialDraft) return;
+    if (initialDraft.category) setCategory(initialDraft.category);
+    if (initialDraft.title) setTitle(initialDraft.title);
+    if (initialDraft.author) setAuthor(initialDraft.author);
+    if (initialDraft.content) setContent(initialDraft.content);
+  }, [initialDraft]);
 
   function handleSubmit() {
     if (!title.trim()) return alert("제목을 입력해 주세요");
@@ -105,8 +114,23 @@ function Editor({ onCancel, onSubmit, isAdmin }) {
     });
   }
 
+  const fromGenerator = initialDraft?.fromGenerator;
+
   return (
     <div className="grid gap-4">
+      {/* 생성기에서 넘어온 경우 안내 배너 */}
+      {fromGenerator && (
+        <div className="rounded-2xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-xs text-emerald-100">
+          <div className="font-medium mb-1">
+            생성기에서 프롬프트를 가져왔어요.
+          </div>
+          <p className="leading-5">
+            제목 앞에 타깃 태그가 자동으로 붙어 있고, 내용에는 방금 만든
+            프롬프트가 들어 있습니다. 설명이나 사용 팁을 더 적어줘도 좋아요.
+          </p>
+        </div>
+      )}
+
       <div className="rounded-2xl border border-zinc-800 bg-zinc-950/80 p-5">
         <div className="grid gap-4">
           {/* 상단: 말머리 + 제목 */}
@@ -445,7 +469,6 @@ function ListTable({ posts, page, pageSize }) {
 /* 상세 페이지 */
 
 function DetailView({ isAdmin, adminPassword }) {
-  // ★ 여기 수정 포인트: useParams + pathname 둘 다에서 id 뽑기
   const { id: paramId } = useParams();
   const location = useLocation();
   const nav = useNavigate();
@@ -487,8 +510,7 @@ function DetailView({ isAdmin, adminPassword }) {
 
   useEffect(() => {
     load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]);
+  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading) {
     return (
@@ -589,7 +611,9 @@ function DetailView({ isAdmin, adminPassword }) {
               </span>
               <h1
                 className={`text-xl leading-tight ${
-                  isNotice ? "font-bold text-amber-100" : "font-semibold text-zinc-50"
+                  isNotice
+                    ? "font-bold text-amber-100"
+                    : "font-semibold text-zinc-50"
                 }`}
               >
                 {post.title}
@@ -689,7 +713,10 @@ function DetailView({ isAdmin, adminPassword }) {
           댓글 ({post.comments?.length || 0})
         </h2>
         <CommentForm onAdd={handleAddComment} />
-        <CommentList comments={post.comments || []} onDelete={handleDeleteComment} />
+        <CommentList
+          comments={post.comments || []}
+          onDelete={handleDeleteComment}
+        />
       </section>
     </article>
   );
@@ -697,7 +724,14 @@ function DetailView({ isAdmin, adminPassword }) {
 
 /* 목록 페이지 */
 
-function BoardListPage({ isAdmin, onAdminLogin, onAdminLogout, adminPassword }) {
+function BoardListPage({
+  isAdmin,
+  onAdminLogin,
+  onAdminLogout,
+  adminPassword,
+  forceEditor = false,
+  initialDraft,
+}) {
   const [posts, setPosts] = useState([]);
   const [query, setQuery] = useState("");
   const [onlyPinned, setOnlyPinned] = useState(false);
@@ -706,6 +740,8 @@ function BoardListPage({ isAdmin, onAdminLogin, onAdminLogout, adminPassword }) 
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [showEditor, setShowEditor] = useState(false);
+
+  const nav = useNavigate();
 
   async function loadPosts() {
     setLoading(true);
@@ -750,6 +786,7 @@ function BoardListPage({ isAdmin, onAdminLogin, onAdminLogout, adminPassword }) 
     return [...notices, ...others];
   }, [posts, query, onlyPinned, sortKey]);
 
+  // 🔥 여기: 성공 후 응답 내용 믿지 말고 무조건 다시 불러오기
   async function handleSubmitNew(payload) {
     try {
       const body = { ...payload };
@@ -760,20 +797,35 @@ function BoardListPage({ isAdmin, onAdminLogin, onAdminLogout, adminPassword }) 
         }
         body.adminPassword = adminPassword;
       }
-      const data = await api("/api/posts", {
+
+      await api("/api/posts", {
         method: "POST",
         body: JSON.stringify(body),
       });
-      const list = Array.isArray(data) ? data : data.posts || [];
-      setPosts(list);
+
+      await loadPosts();
       setShowEditor(false);
+
+      if (forceEditor) {
+        nav("/board");
+      }
     } catch (e) {
       console.error(e);
       alert("글 등록 중 오류가 발생했습니다.");
     }
   }
 
-  if (showEditor) {
+  const isEditorVisible = forceEditor || showEditor;
+
+  const handleCancelEditor = () => {
+    if (forceEditor) {
+      nav("/board");
+    } else {
+      setShowEditor(false);
+    }
+  };
+
+  if (isEditorVisible) {
     return (
       <div className="bg-[#06060A] min-h-[calc(100vh-64px)] text-gray-200">
         <div className="max-w-5xl mx-auto px-4 py-6 grid gap-4">
@@ -784,8 +836,9 @@ function BoardListPage({ isAdmin, onAdminLogin, onAdminLogout, adminPassword }) 
           </div>
           <Editor
             isAdmin={isAdmin}
-            onCancel={() => setShowEditor(false)}
+            onCancel={handleCancelEditor}
             onSubmit={handleSubmitNew}
+            initialDraft={initialDraft}
           />
         </div>
       </div>
@@ -914,14 +967,36 @@ function BoardListPage({ isAdmin, onAdminLogin, onAdminLogout, adminPassword }) 
   );
 }
 
-/* 메인 Board 컴포넌트 (상세/목록 라우팅 스위치) */
+/* 메인 Board 컴포넌트 (상세/목록/글쓰기 스위치) */
 
 export default function Board() {
   const location = useLocation();
-  const matchDetail = /\/board\/[^\/?#]+/.test(location.pathname);
+  const isWrite = location.pathname === "/board/write";
+  const matchDetail = !isWrite && /\/board\/[^\/?#]+/.test(location.pathname);
 
   const [isAdmin, setIsAdmin] = useState(false);
   const [adminPassword, setAdminPassword] = useState("");
+
+  // 생성기에서 넘어온 state → 초기 draft로 변환
+  const state = location.state || {};
+  const targetShortMap = {
+    gemini: "Gemini",
+    veo: "Veo",
+    mj: "Midjourney",
+    sora: "Sora",
+  };
+
+  let initialDraft = null;
+  if (isWrite && state.prompt) {
+    const short = targetShortMap[state.target] || state.target || "";
+    const titlePrefix = short ? `[${short}] ` : "";
+    initialDraft = {
+      fromGenerator: true,
+      category: "프롬프트",
+      title: titlePrefix,
+      content: state.prompt,
+    };
+  }
 
   async function handleAdminLogin() {
     const pw = window.prompt("관리자 비밀번호를 입력하세요.");
@@ -972,6 +1047,8 @@ export default function Board() {
       adminPassword={adminPassword}
       onAdminLogin={handleAdminLogin}
       onAdminLogout={handleAdminLogout}
+      forceEditor={isWrite}
+      initialDraft={initialDraft}
     />
   );
 }

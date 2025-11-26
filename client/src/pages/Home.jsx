@@ -2,7 +2,7 @@
 import { Link } from "react-router-dom";
 
 export default function Home() {
-  // ✅ 우측 모델 카드 데이터 (이미지 전부 개별 파일로 분리)
+  // ✅ 우측 모델 카드 데이터 (+ stage, preset 추가)
   const CARDS = [
     {
       tag: "IMAGE",
@@ -11,6 +11,8 @@ export default function Home() {
       img: "/samples/card-gemini.webp",
       to: "/generator",
       target: "gemini",
+      stage: "시네마틱",
+      preset: "사진(일몰)",
     },
     {
       tag: "VIDEO",
@@ -19,6 +21,8 @@ export default function Home() {
       img: "/samples/card-veo.webp",
       to: "/generator",
       target: "veo",
+      stage: "시네마틱",
+      preset: "사진(일몰)",
     },
     {
       tag: "IMAGE",
@@ -27,6 +31,8 @@ export default function Home() {
       img: "/samples/card-mj.webp",
       to: "/generator",
       target: "mj",
+      stage: "프라임",
+      preset: "사진(정장)",
     },
     {
       tag: "VIDEO",
@@ -35,31 +41,44 @@ export default function Home() {
       img: "/samples/card-sora.webp",
       to: "/generator",
       target: "sora",
+      stage: "시네마틱",
+      preset: "사진(일몰)",
     },
   ];
 
-  // ✅ 제미나이 샘플 이미지 카드
+  // ✅ 홈 하단 샘플 갤러리 – 형이 만든 4개 이미지 버전
   const SAMPLE_CARDS = [
     {
-      id: "emotion-clinic",
-      tag: "아이디어",
-      idea: "감정을 업로드하는 미래형 정신과",
-      desc: "한 줄 아이디어 → 영어 롱프롬프트 → Gemini 이미지",
-      img: "/samples/hero-emotion-clinic-01.png",
+      id: "yakuza-cartoon",
+      tag: "캐릭터 샷",
+      idea: "이레즈미 야쿠자 콘셉트의 코믹 캐릭터 일러스트",
+      desc: "캐릭터 외형 유지 + 타투·의상·배경만 바꾸는 스타일 프롬프트",
+      img: "/samples/sample-yakuza-cartoon.jpg",
+      target: "mj",
     },
     {
-      id: "prompt-forest",
-      tag: "아이디어",
-      idea: "프롬프트가 자라는 숲",
-      desc: "코드와 텍스트가 나무처럼 자라는 컨셉",
-      img: "/samples/hero-prompt-forest-01.png",
+      id: "gangster-duo",
+      tag: "팝 컬쳐 패러디",
+      idea: "갱스터 콘셉트의 코믹 2인 조합 일러스트",
+      desc: "선글라스·골드체인·스트리트 배경으로 캐릭터 무드만 바꾸기",
+      img: "/samples/sample-gangster-duo.jpg",
+      target: "mj",
     },
     {
-      id: "star-whale",
-      tag: "마스코트",
-      idea: "우주를 떠다니는 별고래",
-      desc: "프롬프트리 브랜드 캐릭터 컨셉",
-      img: "/samples/hero-star-whale-01.png",
+      id: "truck-pixel-base",
+      tag: "픽셀 아트",
+      idea: "트럭 생존 베이스 + 캠핑 파티 도트 일러스트",
+      desc: "여러 캐릭터를 한 화면에 배치하는 대형 픽셀 신 프롬프트",
+      img: "/samples/sample-truck-pixel-base.jpg",
+      target: "veo",
+    },
+    {
+      id: "witch-balcony-pixel",
+      tag: "픽셀 아트",
+      idea: "마녀의 발코니 + 네온 시티 + 별고래 픽셀 일러스트",
+      desc: "배경과 분위기를 세밀하게 지정하는 힐링 감성 픽셀 프롬프트",
+      img: "/samples/sample-witch-balcony-pixel.jpg",
+      target: "gemini",
     },
   ];
 
@@ -146,8 +165,10 @@ export default function Home() {
           <div className="flex flex-col gap-4">
             {CARDS.map((c, i) => (
               <Link
-                to={`${c.to}?target=${c.target}`}
                 key={i}
+                to={`${c.to}?target=${c.target}&stage=${encodeURIComponent(
+                  c.stage
+                )}&preset=${encodeURIComponent(c.preset)}`}
                 className="group relative overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950/60 p-4 hover:bg-zinc-900/60 transition"
               >
                 <div className="flex items-center gap-4">
@@ -189,41 +210,45 @@ export default function Home() {
             </div>
             <ul className="space-y-1.5 list-disc list-inside">
               <li>출력되는 프롬프트는 기본적으로 영어 롱프롬프트입니다.</li>
-              <li>오른쪽 모델 카드를 클릭하면 해당 타겟으로 생성기가 맞춰집니다.</li>
+              <li>
+                오른쪽 모델 카드를 클릭하면 해당 타겟과 단계가 자동으로
+                맞춰집니다.
+              </li>
               <li>작성한 내용과 히스토리는 브라우저(로컬)에만 임시 저장돼요.</li>
             </ul>
           </div>
         </div>
       </div>
 
-      {/* 샘플 이미지 갤러리 */}
+      {/* 샘플 이미지 갤러리 – 형이 만든 4컷 */}
       <section className="mt-12 border-t border-zinc-900 pt-8">
         <div className="flex items-end justify-between gap-3 mb-4">
           <div>
             <h2 className="text-lg font-semibold text-white">
-              프롬프트리 샘플
+              지금까지 만든 샘플들
             </h2>
             <p className="text-xs text-zinc-400">
-              한국어 아이디어 한 줄에서, 이런 이미지까지 나옵니다.
+              프롬프트리에서 바로 뽑아낸 이미지 스타일 예시입니다.
             </p>
           </div>
           <span className="text-[11px] text-zinc-500">
-            Gemini 2.5 Flash Image · 내부 테스트 결과
+            Gemini / Veo / Midjourney 믹스 샘플
           </span>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-4">
           {SAMPLE_CARDS.map((card) => (
-            <article
+            <Link
               key={card.id}
-              className="bg-zinc-950/70 border border-zinc-900 rounded-2xl overflow-hidden"
+              to={`/generator?target=${card.target}`}
+              className="bg-zinc-950/70 border border-zinc-900 rounded-2xl overflow-hidden hover:border-zinc-700 hover:bg-zinc-900/70 transition group"
             >
-              <div className="aspect-video overflow-hidden">
+              <div className="aspect-[4/5] overflow-hidden">
                 <img
                   src={card.img}
                   alt={card.idea}
                   loading="lazy"
-                  className="h-full w-full object-cover"
+                  className="h-full w-full object-cover group-hover:scale-[1.02] transition-transform"
                 />
               </div>
               <div className="p-3">
@@ -233,9 +258,11 @@ export default function Home() {
                 <p className="text-xs text-zinc-200 mb-1 line-clamp-2">
                   {card.idea}
                 </p>
-                <p className="text-[11px] text-zinc-500">{card.desc}</p>
+                <p className="text-[11px] text-zinc-500 line-clamp-2">
+                  {card.desc}
+                </p>
               </div>
-            </article>
+            </Link>
           ))}
         </div>
       </section>

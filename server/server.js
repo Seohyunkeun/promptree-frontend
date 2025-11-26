@@ -1,378 +1,377 @@
-// server/server.js
-// Promptree 커뮤니티 백엔드 (Express + SQLite)
-// - /api/posts                     목록 조회
-// - /api/posts (POST)             새 글 작성
-// - /api/posts/:id/like           좋아요 토글
-// - /api/posts/:id/comments       댓글 추가
-// - /api/posts/:id/comments/:cid  댓글 삭제
-// - /api/posts/:id/pin            고정/공지 관련 (관리자 비번 필요)
-// - /api/posts/:id (DELETE)       글 삭제
-// - /api/admin/verify             관리자 비번 확인
+// server.js
+// Promptree 게시판 전용 백엔드 (SQLite)
+// -------------------------------------
+// 필요한 패키지: express, cors, better-sqlite3
+// npm install express cors better-sqlite3
 
 const express = require("express");
 const cors = require("cors");
-const dotenv = require("dotenv");
-const crypto = require("crypto");
-const { getPosts, savePosts } = require("./db");
+const path = require("path");
+const BetterSqlite3 = require("better-sqlite3");
 
-dotenv.config();
-
-const app = express();
+// ===== 설정 =====
 const PORT = process.env.PORT || 4000;
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "promptree-admin"; // 형이 나중에 바꿔
 
-// CORS - 개발/운영 둘 다 열어두기 (필요하면 나중에 도메인 제한)
-app.use(
-  cors({
-    origin: "*",
-  })
-);
+// ===== DB 세팅 =====
+const dbPath = path.join(__dirname, "board.db");
+const db = new BetterSqlite3(dbPath);
 
-app.use(
-  express.json({
-    limit: "2mb",
-  })
-);
+// posts 테이블 생성
+db.prepare(
+  `
+  CREATE TABLE IF NOT EXISTS posts (
+    id TEXT PRIMARY KEY,
+    category TEXT,
+    title TEXT,
+    author TEXT,
+    pwHash TEXT,
+    content TEXT,
+    images TEXT,
+    videos TEXT,
+    likes INTEGER DEFAULT 0,
+    likedBy TEXT,
+    pinned INTEGER DEFAULT 0,
+    views INTEGER DEFAULT 0,
+    createdAt INTEGER,
+    updatedAt INTEGER,
+    comments TEXT
+  )
+`
+).run();
 
-/* helpers */
-
-function safeUUID() {
-  if (crypto.randomUUID) return crypto.randomUUID();
-  // fallback
-  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    const v = c === "x" ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
+// ===== 유틸 =====
+function now() {
+  return Date.now();
 }
 
-function hashLite(str) {
-  let h = 5381;
-  for (const ch of String(str)) h = (h * 33) ^ ch.charCodeAt(0);
-  return (h >>> 0).toString(16).padStart(8, "0");
-}
-
-// 관리자 비번: 당장은 하드코딩으로 고정
-const ADMIN_PASSWORD = "wnrdma44#";
-const ADMIN_PASSWORD_HASH = hashLite(ADMIN_PASSWORD);
-
-function isAdminPasswordValid(input) {
-  if (!input) return false;
-  return hashLite(String(input).trim()) === ADMIN_PASSWORD_HASH;
-}
-
-function sortPosts(posts) {
-  return [...(posts || [])].sort(
-    (a, b) =>
-      Number(b.pinned) - Number(a.pinned) ||
-      Number(b.updatedAt) - Number(a.updatedAt)
+function newId() {
+  return (
+    (typeof crypto !== "undefined" && crypto.randomUUID
+      ? crypto.randomUUID()
+      : Math.random().toString(36).slice(2)) + Date.now()
   );
 }
 
-/* routes */
+function rowToPost(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    category: row.category,
+    title: row.title,
+    author: row.author,
+    pwHash: row.pwHash || "",
+    content: row.content || "",
+    images: row.images ? JSON.parse(row.images) : [],
+    videos: row.videos ? JSON.parse(row.videos) : [],
+    likes: row.likes || 0,
+    likedBy: row.likedBy ? JSON.parse(row.likedBy) : [],
+    pinned: !!row.pinned,
+    views: row.views || 0,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    comments: row.comments ? JSON.parse(row.comments) : [],
+  };
+}
 
-app.get("/api/health", (req, res) => {
-  res.json({ ok: true });
-});
+// ===== 앱 기본 세팅 =====
+const app = express();
+app.use(cors());
+app.use(express.json({ limit: "10mb" })); // 이미지 dataURL 때문에 사이즈 넉넉하게
 
-/**
- * GET /api/posts
- * 전체 게시글 목록 (comments 포함, 정렬까지)
- */
-app.get("/api/posts", async (req, res) => {
-  try {
-    const posts = await getPosts();
-    res.json({ posts: sortPosts(posts) });
-  } catch (err) {
-    console.error("GET /api/posts error:", err);
-    res.status(500).json({ error: "server_error" });
+// ===== 관리자 비번 확인 =====
+app.post("/api/admin/verify", (req, res) => {
+  const { password } = req.body || {};
+  if (!password) {
+    return res.status(400).json({ ok: false, error: "비밀번호가 없습니다." });
   }
+  if (password === ADMIN_PASSWORD) {
+    return res.json({ ok: true });
+  }
+  return res.status(401).json({ ok: false, error: "비밀번호가 올바르지 않습니다." });
 });
 
-/**
- * POST /api/posts
- * 새 글 작성
- * body: { category, title, content, author, pwHash, images, videos, adminPassword? }
- */
-app.post("/api/posts", async (req, res) => {
+// ===== 게시글 목록 =====
+app.get("/api/posts", (req, res) => {
+  const rows = db
+    .prepare(
+      `
+      SELECT *
+      FROM posts
+      ORDER BY pinned DESC, updatedAt DESC
+    `
+    )
+    .all();
+
+  const posts = rows.map(rowToPost);
+  res.json({ posts });
+});
+
+// ===== 게시글 작성 =====
+app.post("/api/posts", (req, res) => {
   try {
     const {
-      category,
+      category = "일반",
       title,
-      content,
-      author,
-      pwHash,
-      images,
-      videos,
+      author = "",
+      pwHash = "",
+      content = "",
+      images = [],
+      videos = [],
       adminPassword,
     } = req.body || {};
 
-    if (!title || !String(title).trim()) {
-      return res.status(400).json({ error: "title_required" });
-    }
-    if (!content || !String(content).trim()) {
-      return res.status(400).json({ error: "content_required" });
+    if (!title || !content) {
+      return res
+        .status(400)
+        .json({ error: "제목과 내용을 모두 입력해 주세요." });
     }
 
-    let cat = category || "일반";
-    let pinned = false;
-
-    if (cat === "공지") {
-      if (!isAdminPasswordValid(adminPassword)) {
-        return res.status(403).json({ error: "forbidden_notice" });
+    // 공지는 관리자만
+    if (category === "공지") {
+      if (adminPassword !== ADMIN_PASSWORD) {
+        return res
+          .status(401)
+          .json({ error: "공지 글은 관리자만 작성할 수 있습니다." });
       }
-      pinned = true;
     }
 
-    const now = Date.now();
-    const newPost = {
-      id: safeUUID(),
-      category: cat,
-      title: String(title).trim(),
-      content: String(content).trim(),
-      author: (author || "").toString().trim(),
-      pwHash: pwHash ? String(pwHash) : "",
-      createdAt: now,
-      updatedAt: now,
-      likes: 0,
-      views: 0,
-      pinned,
-      likedBy: [],
-      comments: [],
-      images: Array.isArray(images) ? images : [],
-      videos: Array.isArray(videos) ? videos : [],
-    };
+    const id = newId();
+    const ts = now();
 
-    const posts = await getPosts();
-    const next = [newPost, ...posts];
-    await savePosts(next);
+    db.prepare(
+      `
+      INSERT INTO posts (
+        id, category, title, author, pwHash, content,
+        images, videos, likes, likedBy, pinned, views,
+        createdAt, updatedAt, comments
+      ) VALUES (
+        @id, @category, @title, @author, @pwHash, @content,
+        @images, @videos, 0, @likedBy, @pinned, 0,
+        @createdAt, @updatedAt, @comments
+      )
+    `
+    ).run({
+      id,
+      category,
+      title,
+      author,
+      pwHash,
+      content,
+      images: JSON.stringify(images || []),
+      videos: JSON.stringify(videos || []),
+      likedBy: JSON.stringify([]),
+      pinned: category === "공지" ? 1 : 0,
+      createdAt: ts,
+      updatedAt: ts,
+      comments: JSON.stringify([]),
+    });
 
-    res.json({ post: newPost, posts: sortPosts(next) });
+    // 전체 목록 재조회해서 반환 (프론트에서 그대로 setPosts)
+    const rows = db
+      .prepare(
+        "SELECT * FROM posts ORDER BY pinned DESC, updatedAt DESC"
+      )
+      .all();
+    const posts = rows.map(rowToPost);
+
+    res.json({ posts });
   } catch (err) {
     console.error("POST /api/posts error:", err);
-    res.status(500).json({ error: "server_error" });
+    res.status(500).json({ error: "글 등록 중 서버 오류가 발생했습니다." });
   }
 });
 
-/**
- * POST /api/posts/:id/like
- * body: { userId }
- */
-app.post("/api/posts/:id/like", async (req, res) => {
+// ===== 게시글 삭제 =====
+app.delete("/api/posts/:id", (req, res) => {
+  const { id } = req.params;
+  db.prepare("DELETE FROM posts WHERE id = ?").run(id);
+
+  const rows = db
+    .prepare(
+      "SELECT * FROM posts ORDER BY pinned DESC, updatedAt DESC"
+    )
+    .all();
+  const posts = rows.map(rowToPost);
+  res.json({ posts });
+});
+
+// ===== 좋아요 토글 =====
+app.post("/api/posts/:id/like", (req, res) => {
   try {
     const { id } = req.params;
     const { userId } = req.body || {};
-    if (!userId) return res.status(400).json({ error: "userId_required" });
+    if (!userId) {
+      return res.status(400).json({ error: "userId가 필요합니다." });
+    }
 
-    const posts = await getPosts();
-    const idx = posts.findIndex((p) => p.id === id);
-    if (idx === -1) return res.status(404).json({ error: "not_found" });
+    const row = db.prepare("SELECT * FROM posts WHERE id = ?").get(id);
+    if (!row) {
+      return res.status(404).json({ error: "게시글을 찾을 수 없습니다." });
+    }
 
-    const post = posts[idx];
-    const likedBy = Array.isArray(post.likedBy) ? [...post.likedBy] : [];
-    const already = likedBy.includes(userId);
-    let likes = Number(post.likes) || 0;
+    const likedBy = row.likedBy ? JSON.parse(row.likedBy) : [];
+    const idx = likedBy.indexOf(userId);
+    let likes = row.likes || 0;
 
-    if (already) {
-      // 좋아요 취소
-      const nextLikedBy = likedBy.filter((x) => x !== userId);
-      likes = Math.max(0, likes - 1);
-      posts[idx] = {
-        ...post,
-        likedBy: nextLikedBy,
-        likes,
-        updatedAt: Date.now(),
-      };
-    } else {
+    if (idx === -1) {
       likedBy.push(userId);
       likes += 1;
-      posts[idx] = {
-        ...post,
-        likedBy,
-        likes,
-        updatedAt: Date.now(),
-      };
+    } else {
+      likedBy.splice(idx, 1);
+      likes = Math.max(0, likes - 1);
     }
 
-    await savePosts(posts);
-    res.json({ post: posts[idx], posts: sortPosts(posts) });
+    db.prepare(
+      `
+      UPDATE posts
+      SET likes = @likes,
+          likedBy = @likedBy,
+          updatedAt = @updatedAt
+      WHERE id = @id
+    `
+    ).run({
+      id,
+      likes,
+      likedBy: JSON.stringify(likedBy),
+      updatedAt: now(),
+    });
+
+    const updated = db
+      .prepare("SELECT * FROM posts WHERE id = ?")
+      .get(id);
+
+    res.json({ post: rowToPost(updated) });
   } catch (err) {
     console.error("POST /api/posts/:id/like error:", err);
-    res.status(500).json({ error: "server_error" });
+    res.status(500).json({ error: "좋아요 처리 중 서버 오류" });
   }
 });
 
-/**
- * POST /api/posts/:id/comments
- * body: { author, pwHash, content }
- */
-app.post("/api/posts/:id/comments", async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { author, pwHash, content } = req.body || {};
-
-    if (!content || !String(content).trim()) {
-      return res.status(400).json({ error: "content_required" });
-    }
-
-    const posts = await getPosts();
-    const idx = posts.findIndex((p) => p.id === id);
-    if (idx === -1) return res.status(404).json({ error: "not_found" });
-
-    const post = posts[idx];
-    const comments = Array.isArray(post.comments) ? [...post.comments] : [];
-    const now = Date.now();
-    const newComment = {
-      id: safeUUID(),
-      author: (author || "").toString().trim(),
-      pwHash: pwHash ? String(pwHash) : "",
-      content: String(content).trim(),
-      createdAt: now,
-    };
-
-    comments.push(newComment);
-
-    posts[idx] = {
-      ...post,
-      comments,
-      updatedAt: now,
-    };
-
-    await savePosts(posts);
-    res.json({
-      post: posts[idx],
-      comments,
-      posts: sortPosts(posts),
-    });
-  } catch (err) {
-    console.error("POST /api/posts/:id/comments error:", err);
-    res.status(500).json({ error: "server_error" });
-  }
-});
-
-/**
- * DELETE /api/posts/:id/comments/:cid
- * (지금은 비밀번호 검증 없이 누구나 삭제 가능 — 기존 로컬 버전과 동일)
- */
-app.delete("/api/posts/:id/comments/:cid", async (req, res) => {
-  try {
-    const { id, cid } = req.params;
-
-    const posts = await getPosts();
-    const idx = posts.findIndex((p) => p.id === id);
-    if (idx === -1) return res.status(404).json({ error: "not_found" });
-
-    const post = posts[idx];
-    const comments = Array.isArray(post.comments) ? [...post.comments] : [];
-    const nextComments = comments.filter((c) => c.id !== cid);
-
-    posts[idx] = {
-      ...post,
-      comments: nextComments,
-      updatedAt: Date.now(),
-    };
-
-    await savePosts(posts);
-    res.json({
-      post: posts[idx],
-      comments: nextComments,
-      posts: sortPosts(posts),
-    });
-  } catch (err) {
-    console.error("DELETE /api/posts/:id/comments/:cid error:", err);
-    res.status(500).json({ error: "server_error" });
-  }
-});
-
-/**
- * POST /api/posts/:id/pin
- * body: { adminPassword }
- * - 공지는 항상 pinned 유지
- * - 일반 글은 관리자만 고정/해제 가능
- */
-app.post("/api/posts/:id/pin", async (req, res) => {
+// ===== 고정 토글 =====
+app.post("/api/posts/:id/pin", (req, res) => {
   try {
     const { id } = req.params;
     const { adminPassword } = req.body || {};
 
-    if (!isAdminPasswordValid(adminPassword)) {
-      return res.status(403).json({ error: "forbidden" });
+    if (adminPassword !== ADMIN_PASSWORD) {
+      return res.status(401).json({ error: "관리자 비밀번호가 올바르지 않습니다." });
     }
 
-    const posts = await getPosts();
-    const idx = posts.findIndex((p) => p.id === id);
-    if (idx === -1) return res.status(404).json({ error: "not_found" });
-
-    const post = posts[idx];
-
-    let pinned = !!post.pinned;
-    if (post.category === "공지") {
-      // 공지는 항상 고정
-      pinned = true;
-    } else {
-      pinned = !pinned;
+    const row = db.prepare("SELECT * FROM posts WHERE id = ?").get(id);
+    if (!row) {
+      return res.status(404).json({ error: "게시글을 찾을 수 없습니다." });
     }
 
-    posts[idx] = {
-      ...post,
+    const pinned = row.pinned ? 0 : 1;
+
+    db.prepare(
+      `
+      UPDATE posts
+      SET pinned = @pinned, updatedAt = @updatedAt
+      WHERE id = @id
+    `
+    ).run({
+      id,
       pinned,
-      updatedAt: Date.now(),
-    };
+      updatedAt: now(),
+    });
 
-    await savePosts(posts);
-    res.json({ post: posts[idx], posts: sortPosts(posts) });
+    const updated = db
+      .prepare("SELECT * FROM posts WHERE id = ?")
+      .get(id);
+    res.json({ post: rowToPost(updated) });
   } catch (err) {
     console.error("POST /api/posts/:id/pin error:", err);
-    res.status(500).json({ error: "server_error" });
+    res.status(500).json({ error: "고정 처리 중 서버 오류" });
   }
 });
 
-/**
- * DELETE /api/posts/:id
- * (지금은 누구나 삭제 가능 — 기존 프론트 동작과 동일)
- */
-app.delete("/api/posts/:id", async (req, res) => {
+// ===== 댓글 추가 =====
+app.post("/api/posts/:id/comments", (req, res) => {
   try {
     const { id } = req.params;
+    const { author = "", pwHash = "", content } = req.body || {};
 
-    const posts = await getPosts();
-    const before = posts.length;
-    const next = posts.filter((p) => p.id !== id);
-
-    if (next.length === before) {
-      return res.status(404).json({ error: "not_found" });
+    if (!content) {
+      return res.status(400).json({ error: "댓글 내용을 입력해 주세요." });
     }
 
-    await savePosts(next);
-    res.json({ ok: true, posts: sortPosts(next) });
-  } catch (err) {
-    console.error("DELETE /api/posts/:id error:", err);
-    res.status(500).json({ error: "server_error" });
-  }
-});
+    const row = db.prepare("SELECT * FROM posts WHERE id = ?").get(id);
+    if (!row) {
+      return res.status(404).json({ error: "게시글을 찾을 수 없습니다." });
+    }
 
-/**
- * POST /api/admin/verify
- * body: { password }
- * 관리자 로그인 확인용
- * - 항상 200으로 응답해서 프론트에서 에러/성공을 깔끔하게 분기
- */
-app.post("/api/admin/verify", (req, res) => {
-  const { password } = req.body || {};
+    const comments = row.comments ? JSON.parse(row.comments) : [];
+    const comment = {
+      id: newId(),
+      author,
+      pwHash,
+      content,
+      createdAt: now(),
+    };
+    comments.push(comment);
 
-  // 서버에 비번이 아예 안 잡혀있을 때
-  if (!ADMIN_PASSWORD) {
-    console.error("ADMIN_PASSWORD 가 .env 에 설정되어 있지 않음");
-    return res.status(200).json({
-      ok: false,
-      message: "서버 설정이 잘못되었습니다. ADMIN_PASSWORD 를 설정하세요.",
+    db.prepare(
+      `
+      UPDATE posts
+      SET comments = @comments,
+          updatedAt = @updatedAt
+      WHERE id = @id
+    `
+    ).run({
+      id,
+      comments: JSON.stringify(comments),
+      updatedAt: now(),
     });
+
+    const updated = db
+      .prepare("SELECT * FROM posts WHERE id = ?")
+      .get(id);
+    res.json({ post: rowToPost(updated) });
+  } catch (err) {
+    console.error("POST /api/posts/:id/comments error:", err);
+    res.status(500).json({ error: "댓글 등록 중 서버 오류" });
   }
-
-  const ok = password && isAdminPasswordValid(password);
-
-  return res.status(200).json({ ok });
 });
 
+// ===== 댓글 삭제 (비번 검증은 나중에) =====
+app.delete("/api/posts/:id/comments/:cid", (req, res) => {
+  try {
+    const { id, cid } = req.params;
+
+    const row = db.prepare("SELECT * FROM posts WHERE id = ?").get(id);
+    if (!row) {
+      return res.status(404).json({ error: "게시글을 찾을 수 없습니다." });
+    }
+
+    const comments = row.comments ? JSON.parse(row.comments) : [];
+    const next = comments.filter((c) => String(c.id) !== String(cid));
+
+    db.prepare(
+      `
+      UPDATE posts
+      SET comments = @comments,
+          updatedAt = @updatedAt
+      WHERE id = @id
+    `
+    ).run({
+      id,
+      comments: JSON.stringify(next),
+      updatedAt: now(),
+    });
+
+    const updated = db
+      .prepare("SELECT * FROM posts WHERE id = ?")
+      .get(id);
+    res.json({ post: rowToPost(updated) });
+  } catch (err) {
+    console.error("DELETE /api/posts/:id/comments/:cid error:", err);
+    res.status(500).json({ error: "댓글 삭제 중 서버 오류" });
+  }
+});
+
+// ===== 서버 시작 =====
 app.listen(PORT, () => {
-  console.log(`🚀 Promptree backend running on http://localhost:${PORT}`);
+  console.log(`Promptree board API running on http://localhost:${PORT}`);
 });

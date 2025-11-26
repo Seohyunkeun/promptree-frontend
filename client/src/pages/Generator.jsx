@@ -1,16 +1,17 @@
 // client/src/pages/Generator.jsx
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 
 /* ─────────────────────────────────────────────
    Promptree 생성기 (압축 레이아웃 + 타깃 칩 버전)
+   + 참고 이미지 업로드 / 외형 유지 토글 / 게시글 쓰기 연동
 
    - 좌: 타깃(칩) / 단계 / 프리셋 / 퀵 액션
    - 우: [입력] / [결과] 탭
+     - 입력 탭에 참고 이미지 업로드 + 설명 + 외형 유지 토글
    - 하단: 접히는 히스토리
 ────────────────────────────────────────────── */
 
-const LS_DRAFT = "pt_gen_draft_v4";
 const LS_HISTORY = "pt_gen_history_v4";
 const MAX_HISTORY = 30;
 
@@ -55,7 +56,7 @@ const STYLE_TAGS = [
   "얕은 심도",
 ];
 
-// 타깃/단계/프리셋까지 포함한 샘플 세트
+// 샘플 세트
 const SAMPLE_SET = [
   // GEMINI
   {
@@ -117,6 +118,20 @@ const SAMPLE_SET = [
   },
 ];
 
+const TARGET_USAGE_LABEL = {
+  gemini: "Gemini 2.5 Flash Image용 이미지 프롬프트",
+  veo: "Veo 3.1용 비디오 프롬프트 (샷 플랜)",
+  mj: "Midjourney V7 /imagine 프롬프트",
+  sora: "OpenAI Sora 2용 8초 비디오 클립 프롬프트",
+};
+
+const COPY_BUTTON_LABEL = {
+  gemini: "Gemini 프롬프트 복사",
+  veo: "Veo 프롬프트 복사",
+  mj: "Midjourney 프롬프트 복사",
+  sora: "Sora 프롬프트 복사",
+};
+
 const prettyDate = (d = new Date()) =>
   new Intl.DateTimeFormat("ko", {
     dateStyle: "medium",
@@ -127,6 +142,7 @@ const estimateTokens = (t = "") => Math.ceil((t || "").length / 4);
 
 export default function Generator() {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
 
   const [stage, setStage] = useState("라이팅");
   const [preset, setPreset] = useState("사진(일몰)");
@@ -138,18 +154,17 @@ export default function Generator() {
   const [activeSample, setActiveSample] = useState(null);
   const [activeTab, setActiveTab] = useState("input"); // "input" | "result"
   const [historyOpen, setHistoryOpen] = useState(false);
+
+  // 참고 이미지 + 설명 + 외형 유지 상태
+  const [refImage, setRefImage] = useState(null);
+  const [refImagePreview, setRefImagePreview] = useState(null);
+  const [refNote, setRefNote] = useState("");
+  const [lockAppearance, setLockAppearance] = useState(true);
+
   const outRef = useRef(null);
 
-  // draft & history load
+  // 히스토리만 로드
   useEffect(() => {
-    try {
-      const draft = JSON.parse(localStorage.getItem(LS_DRAFT) || "{}");
-      if (draft.input) setInput(draft.input);
-      if (draft.target) setTarget(draft.target);
-      if (draft.tags) setTags(draft.tags);
-    } catch (e) {
-      console.error(e);
-    }
     try {
       const h = JSON.parse(localStorage.getItem(LS_HISTORY) || "[]");
       setHistory(h);
@@ -174,7 +189,7 @@ export default function Generator() {
     }
 
     if (presetParam) {
-      applyPreset(presetParam);
+      setPreset(presetParam);
     }
 
     if (sampleParam) {
@@ -182,14 +197,6 @@ export default function Generator() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
-
-  // draft save
-  useEffect(() => {
-    localStorage.setItem(
-      LS_DRAFT,
-      JSON.stringify({ input, target, tags })
-    );
-  }, [input, target, tags]);
 
   const charCount = input.length;
   const outputTokenCount = useMemo(() => estimateTokens(output), [output]);
@@ -206,77 +213,142 @@ export default function Generator() {
 
   const applyPreset = (name) => {
     setPreset(name);
-    if (name === "사진(일몰)") {
-      setInput(
-        "네온 간판이 있는 도쿄 골목, 노을 반사, 인물 클로즈업, 시네마틱"
-      );
-    } else if (name === "사진(정장)") {
-      setInput(
-        "광고 촬영 룩북, 다크 수트, 하이라이트 헤어, 스튜디오 소프트박스"
-      );
-    } else if (name === "제품") {
-      setInput(
-        "무선 이어폰 제품컷, 흰 배경, 상단 소프트 라이트, 그림자 살짝"
-      );
-    }
   };
 
-  // 🔥 공통 프롬프트 빌더: 결과는 "프롬프트만" 나오게 정리
-  const buildPromptFor = ({ targetArg, stageArg, inputArg, tagsArg }) => {
+  // 참고 이미지 핸들러
+  const handleRefImageChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (refImagePreview) {
+      URL.revokeObjectURL(refImagePreview);
+    }
+    setRefImage(file);
+    const url = URL.createObjectURL(file);
+    setRefImagePreview(url);
+  };
+
+  const clearRefImage = () => {
+    if (refImagePreview) {
+      URL.revokeObjectURL(refImagePreview);
+    }
+    setRefImage(null);
+    setRefImagePreview(null);
+  };
+
+  // 공통 프롬프트 빌더
+  const buildPromptFor = ({
+    targetArg,
+    stageArg,
+    inputArg,
+    tagsArg,
+    refImagePresent,
+    refNoteArg,
+    lockAppearanceArg,
+  }) => {
     const user = (inputArg || "").trim();
     const stageText = stageArg ? `, ${stageArg}` : "";
     const styleTagsText =
       tagsArg && tagsArg.length ? `, ${tagsArg.join(", ")}` : "";
 
+    const referenceBlock = (() => {
+      const hasNote = !!(refNoteArg && refNoteArg.trim());
+      if (!refImagePresent && !hasNote) return "";
+      const lines = ["REFERENCE:"];
+
+      if (refImagePresent) {
+        if (targetArg === "veo" || targetArg === "sora") {
+          lines.push(
+            "- Use the attached reference image as the main character/style guide for the video."
+          );
+        } else if (targetArg === "mj") {
+          lines.push(
+            "- Use the attached reference image together with this prompt (image prompt + text prompt)."
+          );
+        } else {
+          lines.push(
+            "- Use the attached reference image as the main visual guide."
+          );
+        }
+      }
+
+      if (lockAppearanceArg) {
+        if (targetArg === "veo" || targetArg === "sora") {
+          lines.push(
+            "- If there is a character in the reference, keep the same character design (face, body shape, hairstyle, colors) throughout the whole clip.",
+            "- Animate the character and environment, but do NOT redesign the character unless explicitly requested."
+          );
+        } else {
+          lines.push(
+            "- Keep the character's appearance exactly the same as the reference (face, body shape, hairstyle, colors).",
+            "- Do NOT change the original design unless it is explicitly requested in the brief."
+          );
+        }
+      } else {
+        lines.push(
+          "- Use the reference mainly for overall mood, color, and style. Moderate redesign is allowed if it fits the brief."
+        );
+      }
+
+      if (hasNote) {
+        lines.push(
+          `- Korean brief about the reference: ${refNoteArg.trim()}`
+        );
+      }
+
+      return lines.join("\n");
+    })();
+
     if (targetArg === "gemini") {
-      // Gemini 2.5: 포토리얼 이미지 프롬프트만
       const base =
         user ||
         "cinematic portrait, neon city alley, reflections on wet ground";
-      return [
+      const main = [
         `${base}${stageText}, photorealistic, highly detailed, 50mm lens, ISO 200, f1.8, softbox key light, rim light, subtle fill, ambient practical lights, shallow depth of field, rule of thirds${styleTagsText}`,
         "Negative: watermark, logo, text, overexposed highlights, deformed hands, extra fingers, distorted face",
       ].join("\n");
+      return referenceBlock ? [main, referenceBlock].join("\n\n") : main;
     }
 
     if (targetArg === "veo") {
-      // Veo 3.1: 비디오 샷 플랜만 (메타 라벨 제거)
       const base =
         user ||
         "camera slowly flying through a neon forest, particles of light drifting in the air";
-      return [
+      const main = [
         `Cinematic 6–8 second video at 24fps${stageText}. Scene: ${base}${styleTagsText}.`,
         "Shot 01 (2s): wide establishing shot with a slow dolly-in through the environment.",
         "Shot 02 (4–6s): medium hero shot with a gentle pan that follows the main subject.",
         "Keep motion smooth and coherent lighting. No trademarks, no nudity, no graphic or violent content.",
       ].join("\n");
+      return referenceBlock ? [main, referenceBlock].join("\n\n") : main;
     }
 
     if (targetArg === "mj") {
-      // Midjourney V7: /imagine 한 줄 프롬프트
       const content =
         user || "cinematic portrait, soft rim light, highly detailed";
-      return `/imagine ${content}${styleTagsText} --ar 3:4 --v 7 --style raw`;
+      const line = `/imagine ${content}${styleTagsText} --ar 3:4 --v 7 --style raw`;
+      return referenceBlock ? [line, referenceBlock].join("\n\n") : line;
     }
 
-    // Sora 2: 8초 시네마틱 비디오 설명만
     const base =
       user ||
       "dusk city street, one person walking slowly toward camera, traffic lights glowing in the background";
-    return [
+    const main = [
       `8 second cinematic video at 24fps${stageText}. Scene: ${base}${styleTagsText}.`,
       "Camera: gentle handheld sway with a 35mm look, smooth forward movement toward the subject.",
       "No excessive shake, no text overlay, no logos, no heavy compression artifacts.",
     ].join("\n");
+    return referenceBlock ? [main, referenceBlock].join("\n\n") : main;
   };
 
-  // 현재 상태 기반
   const buildPrompt = () =>
     buildPromptFor({
       targetArg: target,
       stageArg: stage,
       inputArg: input,
       tagsArg: tags,
+      refImagePresent: !!refImage,
+      refNoteArg: refNote,
+      lockAppearanceArg: lockAppearance,
     });
 
   const applySample = (sampleId) => {
@@ -312,6 +384,9 @@ export default function Generator() {
       stageArg: nextStage,
       inputArg: nextInput,
       tagsArg: nextTags,
+      refImagePresent: !!refImage,
+      refNoteArg: refNote,
+      lockAppearanceArg: lockAppearance,
     });
     setOutput(p);
     const rec = {
@@ -363,6 +438,23 @@ export default function Generator() {
     }
   };
 
+  // 🔥 생성된 프롬프트를 게시판 글쓰기로 넘기는 부분
+  const goToBoardWrite = () => {
+    if (!output) {
+      alert("먼저 프롬프트를 생성한 뒤 게시글로 보내주세요.");
+      return;
+    }
+    navigate("/board/write", {
+      state: {
+        // Board.jsx 에서 state.prompt 로 받음
+        prompt: output,
+        target,
+        stage,
+        preset,
+      },
+    });
+  };
+
   const clearHistory = () => {
     if (!history.length) return;
     if (!confirm("히스토리를 모두 삭제할까요?")) return;
@@ -385,8 +477,11 @@ export default function Generator() {
     currentTargetMeta.placeholder ||
     "예) 비 오는 네온 시티 골목, 우산을 든 인물의 클로즈업, 젖은 바닥에 반사된 불빛, 시네마틱 무드";
 
+  const currentUsageLabel =
+    TARGET_USAGE_LABEL[target] || "AI 생성용 프롬프트";
+  const copyButtonLabel = COPY_BUTTON_LABEL[target] || "프롬프트 복사";
+
   return (
-    // 🔥 컨테이너
     <div className="max-w-6xl mx-auto px-4 py-10 space-y-6">
       {/* 상단 헤더 */}
       <header className="flex items-center justify-between gap-4">
@@ -402,7 +497,7 @@ export default function Generator() {
           className="h-9 px-3 rounded-xl border border-zinc-800 bg-zinc-900/70 hover:bg-zinc-800 text-sm"
           onClick={() =>
             alert(
-              "사용 가이드\n\n1) 왼쪽에서 타깃·프리셋·단계를 고르고\n2) [입력] 탭에 장면을 적은 뒤\n3) [프롬프트 생성] 버튼을 누르세요.\n\n[결과] 탭에서 깔끔한 프롬프트를 확인하고 복사할 수 있습니다."
+              "사용 가이드\n\n1) 왼쪽에서 타깃·프리셋·단계를 고르고\n2) [입력] 탭에서 장면과 참고 이미지를 직접 적은 뒤\n3) [프롬프트 생성] 버튼을 누르세요.\n\n[결과] 탭에서 타깃별 포맷에 맞춘 프롬프트를 확인하고 복사하거나 게시글로 보낼 수 있습니다."
             )
           }
         >
@@ -486,8 +581,8 @@ export default function Generator() {
               ))}
             </div>
             <p className="text-[11px] text-zinc-500 leading-5">
-              프리셋을 고른 뒤 내용을 조금만 바꿔도 빠르게 괜찮은 프롬프트를 만들
-              수 있어요.
+              프리셋은 추천 조합일 뿐, 입력 문장은 형이 직접 쓰는 걸 기준으로
+              잡았어요.
             </p>
           </section>
 
@@ -564,6 +659,86 @@ export default function Generator() {
             <div className="p-4 space-y-4">
               {activeTab === "input" ? (
                 <>
+                  {/* 참고 이미지 업로드 + 외형 유지 */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <h2 className="text-sm font-medium text-zinc-200">
+                        참고 이미지 (선택)
+                      </h2>
+                      <span className="text-[11px] text-zinc-500 text-right">
+                        업로드하면 프롬프트에 &quot;참고 이미지 기반&quot; 안내가
+                        자동으로 들어갑니다.
+                        <br />
+                        이미지는 모델이 참고만 하기 때문에 완전히 동일하게
+                        재현되지는 않을 수 있어요.
+                      </span>
+                    </div>
+                    <label className="flex items-center justify-between gap-3 rounded-xl border border-dashed border-zinc-700 bg-zinc-950/60 px-3 py-2 text-xs text-zinc-400 hover:border-zinc-500 hover:bg-zinc-900/60 cursor-pointer">
+                      <div className="flex flex-col">
+                        <span className="font-medium text-zinc-200">
+                          이미지 업로드
+                        </span>
+                        <span className="text-[11px] text-zinc-500">
+                          PNG, JPG 등 이미지 파일만 / 최대 1개
+                        </span>
+                      </div>
+                      <div className="rounded-lg border border-zinc-700 px-2 py-1 text-[11px]">
+                        파일 선택
+                      </div>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleRefImageChange}
+                      />
+                    </label>
+                    {refImagePreview && (
+                      <div className="flex items-center gap-3">
+                        <img
+                          src={refImagePreview}
+                          alt="참고 이미지 미리보기"
+                          className="w-16 h-16 rounded-lg object-cover border border-zinc-800"
+                        />
+                        <div className="flex-1 text-[11px] text-zinc-400">
+                          <div className="line-clamp-1">
+                            {refImage?.name || "선택된 이미지"}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={clearRefImage}
+                            className="mt-1 text-xs text-zinc-500 hover:text-zinc-200"
+                          >
+                            이미지 삭제
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between mt-1">
+                      <label className="flex items-center gap-2 text-xs text-zinc-300">
+                        <input
+                          type="checkbox"
+                          checked={lockAppearance}
+                          onChange={(e) =>
+                            setLockAppearance(e.target.checked)
+                          }
+                          className="h-3.5 w-3.5 rounded border-zinc-700 bg-zinc-900"
+                        />
+                        <span>캐릭터 외형 그대로 유지</span>
+                      </label>
+                      <span className="text-[11px] text-zinc-500">
+                        OFF 시 스타일·분위기만 참고합니다.
+                      </span>
+                    </div>
+                    <textarea
+                      value={refNote}
+                      onChange={(e) => setRefNote(e.target.value)}
+                      rows={2}
+                      className="w-full bg-transparent outline-none text-[12px] leading-6 placeholder:text-zinc-600 border border-zinc-800/80 rounded-xl px-3 py-2 max-h-[80px] scrollbar-thin"
+                      placeholder="참고 이미지에 대한 설명이 있으면 한글로 적어주세요. (예: 이 캐릭터는 래퍼, 문신과 금목걸이만 추가)"
+                    />
+                  </div>
+
+                  {/* 메인 입력 */}
                   <textarea
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
@@ -571,6 +746,8 @@ export default function Generator() {
                     className="w-full bg-transparent outline-none text-[15px] leading-7 placeholder:text-zinc-600 border border-zinc-800/80 rounded-xl px-3 py-2 max-h-[220px] scrollbar-thin"
                     placeholder={inputPlaceholder}
                   />
+
+                  {/* 스타일 태그 */}
                   <div>
                     <div className="flex items-center justify-between mb-2">
                       <h2 className="text-sm font-medium text-zinc-200">
@@ -599,14 +776,21 @@ export default function Generator() {
                   </div>
                 </>
               ) : (
-                <textarea
-                  ref={outRef}
-                  readOnly
-                  value={output}
-                  rows={10}
-                  className="w-full bg-transparent outline-none text-[13px] leading-7 border border-zinc-800/80 rounded-xl px-3 py-2 max-h-[260px] scrollbar-thin whitespace-pre-wrap"
-                  placeholder="아직 생성된 프롬프트가 없습니다. [입력] 탭에서 내용을 작성한 뒤 [프롬프트 생성]을 눌러보세요."
-                />
+                <>
+                  {/* 타깃별 사용처 안내 */}
+                  <div className="text-[11px] text-zinc-500">
+                    {currentUsageLabel} · 이 텍스트 전체를 복사해서 해당 모델
+                    입력 칸에 붙여넣으면 됩니다.
+                  </div>
+                  <textarea
+                    ref={outRef}
+                    readOnly
+                    value={output}
+                    rows={10}
+                    className="w-full bg-transparent outline-none text-[13px] leading-7 border border-zinc-800/80 rounded-xl px-3 py-2 max-h-[260px] scrollbar-thin whitespace-pre-wrap"
+                    placeholder="아직 생성된 프롬프트가 없습니다. [입력] 탭에서 내용을 작성한 뒤 [프롬프트 생성]을 눌러보세요."
+                  />
+                </>
               )}
 
               {/* 액션 버튼 */}
@@ -621,10 +805,18 @@ export default function Generator() {
                   onClick={onCopy}
                   className="h-9 px-4 rounded-xl border border-zinc-800 bg-zinc-900/80 hover:bg-zinc-800 text-sm"
                 >
-                  복사
+                  {copyButtonLabel}
+                </button>
+                <button
+                  type="button"
+                  onClick={goToBoardWrite}
+                  className="h-9 px-4 rounded-xl border border-emerald-500/60 bg-emerald-500/10 text-emerald-300 text-sm hover:bg-emerald-500/20"
+                >
+                  이 프롬프트로 게시글 쓰기
                 </button>
                 <span className="text-xs text-zinc-500">
-                  생성 후 결과 탭에서 프롬프트를 확인할 수 있어요.
+                  생성 후 결과 탭에서 프롬프트를 확인·복사하거나 게시판으로
+                  보낼 수 있어요.
                 </span>
               </div>
             </div>

@@ -8,6 +8,7 @@ import Privacy from "./pages/Privacy";
 import NotFound from "./pages/NotFound";
 import Login from "./pages/Login";
 import Join from "./pages/Join";
+import BoardWrite from "./pages/BoardWrite"; // ✅ 글쓰기 페이지 추가
 
 export default function App() {
   const year = new Date().getFullYear();
@@ -90,7 +91,9 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/generator" element={<Generator />} />
-          {/* /board 와 /board/:id 모두 Board가 처리 */}
+          {/* ✅ 글쓰기 전용 라우트 (Board보다 위에 둬야 함) */}
+          <Route path="/board/write" element={<BoardWrite />} />
+          {/* /board 와 /board/* (목록/상세 등) */}
           <Route path="/board/*" element={<Board />} />
           <Route path="/login" element={<Login />} />
           <Route path="/join" element={<Join />} />
