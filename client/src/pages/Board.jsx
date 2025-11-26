@@ -76,6 +76,7 @@ function Editor({ onCancel, onSubmit, isAdmin, initialDraft }) {
     : ["일반", "프롬프트", "기타"];
 
   useEffect(() => {
+    // location state가 바뀌었을 때도 초기값 반영
     if (!initialDraft) return;
     if (initialDraft.category) setCategory(initialDraft.category);
     if (initialDraft.title) setTitle(initialDraft.title);
@@ -103,7 +104,9 @@ function Editor({ onCancel, onSubmit, isAdmin, initialDraft }) {
       const reader = new FileReader();
       reader.onload = () => {
         const item = {
-          id: crypto.randomUUID?.() ?? Math.random().toString(36).slice(2),
+          id:
+            crypto.randomUUID?.() ??
+            Math.random().toString(36).slice(2),
           name: f.name,
           dataUrl: String(reader.result),
         };
@@ -371,97 +374,100 @@ function ListTable({ posts, page, pageSize }) {
 
   return (
     <div className="rounded-2xl border border-zinc-800 bg-zinc-950/80 overflow-hidden">
-      <table className="w-full text-[13px]">
-        <thead className="bg-zinc-900/80 border-b border-zinc-800 text-zinc-400">
-          <tr>
-            <th className="w-16 py-2 font-medium">번호</th>
-            <th className="w-24 font-medium">말머리</th>
-            <th className="text-left font-medium">제목</th>
-            <th className="w-32 font-medium">글쓴이</th>
-            <th className="w-32 font-medium">작성일</th>
-            <th className="w-20 font-medium">조회</th>
-            <th className="w-20 font-medium">추천</th>
-          </tr>
-        </thead>
-        <tbody className="text-zinc-200">
-          {slice.map((p, i) => {
-            const no = posts.length - (startIndex + i);
-            const commentCnt = p.comments?.length || 0;
-            const isNotice = p.category === "공지";
-            const badgeClass = isNotice
-              ? "bg-amber-500/10 text-amber-300 border-amber-500/60"
-              : p.category === "프롬프트"
-              ? "bg-violet-500/10 text-violet-300 border-violet-500/40"
-              : p.category === "기타"
-              ? "bg-sky-500/10 text-sky-300 border-sky-500/40"
-              : "bg-zinc-700/20 text-zinc-200 border-zinc-500/40";
+      {/* 🔥 모바일에서 가로 스크롤 가능하게 래퍼 추가 */}
+      <div className="w-full overflow-x-auto">
+        <table className="w-full min-w-[720px] text-[13px]">
+          <thead className="bg-zinc-900/80 border-b border-zinc-800 text-zinc-400">
+            <tr>
+              <th className="w-16 py-2 font-medium">번호</th>
+              <th className="w-24 font-medium">말머리</th>
+              <th className="text-left font-medium">제목</th>
+              <th className="w-32 font-medium">글쓴이</th>
+              <th className="w-32 font-medium">작성일</th>
+              <th className="w-20 font-medium">조회</th>
+              <th className="w-20 font_medium">추천</th>
+            </tr>
+          </thead>
+          <tbody className="text-zinc-200">
+            {slice.map((p, i) => {
+              const no = posts.length - (startIndex + i);
+              const commentCnt = p.comments?.length || 0;
+              const isNotice = p.category === "공지";
+              const badgeClass = isNotice
+                ? "bg-amber-500/10 text-amber-300 border-amber-500/60"
+                : p.category === "프롬프트"
+                ? "bg-violet-500/10 text-violet-300 border-violet-500/40"
+                : p.category === "기타"
+                ? "bg-sky-500/10 text-sky-300 border-sky-500/40"
+                : "bg-zinc-700/20 text-zinc-200 border-zinc-500/40";
 
-            return (
-              <tr
-                key={p.id}
-                className={`border-b border-zinc-800 last:border-0 transition-colors ${
-                  isNotice
-                    ? "bg-zinc-900/80 hover:bg-zinc-900"
-                    : "hover:bg-zinc-900/60"
-                }`}
-              >
-                <td className="text-center py-2 text-zinc-400">{no}</td>
-                <td className="text-center">
-                  <span
-                    className={`inline-flex items-center justify-center px-2 py-0.5 rounded-full border text-[11px] ${badgeClass}`}
-                  >
-                    {p.category}
-                  </span>
-                </td>
-                <td className="py-2">
-                  <Link
-                    to={`/board/${p.id}`}
-                    className={`hover:underline ${
-                      isNotice
-                        ? "font-semibold text-amber-100"
-                        : "text-zinc-50"
-                    }`}
-                  >
-                    <span className="align-middle">{p.title}</span>
-                    {commentCnt ? (
-                      <span className="ml-1 text-xs text-zinc-400 align-middle">
-                        [{commentCnt}]
-                      </span>
-                    ) : null}
-                    {p.pinned && (
-                      <span className="ml-1 text-xs text-amber-300 align-middle">
-                        📌
-                      </span>
-                    )}
-                  </Link>
-                </td>
-                <td className="text-center text-zinc-300">
-                  {p.author || "익명"}
-                </td>
-                <td className="text-center text-zinc-400">
-                  {fmtDate(p.createdAt)}
-                </td>
-                <td className="text-center text-zinc-300">
-                  {p.views || 0}
-                </td>
-                <td className="text-center text-zinc-300">
-                  {p.likes || 0}
+              return (
+                <tr
+                  key={p.id}
+                  className={`border-b border-zinc-800 last:border-0 transition-colors ${
+                    isNotice
+                      ? "bg-zinc-900/80 hover:bg-zinc-900"
+                      : "hover:bg-zinc-900/60"
+                  }`}
+                >
+                  <td className="text-center py-2 text-zinc-400">{no}</td>
+                  <td className="text-center">
+                    <span
+                      className={`inline-flex items-center justify-center px-2 py-0.5 rounded-full border text-[11px] ${badgeClass}`}
+                    >
+                      {p.category}
+                    </span>
+                  </td>
+                  <td className="py-2">
+                    <Link
+                      to={`/board/${p.id}`}
+                      className={`hover:underline ${
+                        isNotice
+                          ? "font-semibold text-amber-100"
+                          : "text-zinc-50"
+                      }`}
+                    >
+                      <span className="align-middle">{p.title}</span>
+                      {commentCnt ? (
+                        <span className="ml-1 text-xs text-zinc-400 align-middle">
+                          [{commentCnt}]
+                        </span>
+                      ) : null}
+                      {p.pinned && (
+                        <span className="ml-1 text-xs text-amber-300 align-middle">
+                          📌
+                        </span>
+                      )}
+                    </Link>
+                  </td>
+                  <td className="text-center text-zinc-300">
+                    {p.author || "익명"}
+                  </td>
+                  <td className="text-center text-zinc-400">
+                    {fmtDate(p.createdAt)}
+                  </td>
+                  <td className="text-center text-zinc-300">
+                    {p.views || 0}
+                  </td>
+                  <td className="text-center text-zinc-300">
+                    {p.likes || 0}
+                  </td>
+                </tr>
+              );
+            })}
+            {slice.length === 0 && (
+              <tr>
+                <td
+                  colSpan={7}
+                  className="py-16 text-center text-zinc-500 text-sm"
+                >
+                  아직 등록된 글이 없어요
                 </td>
               </tr>
-            );
-          })}
-          {slice.length === 0 && (
-            <tr>
-              <td
-                colSpan={7}
-                className="py-16 text-center text-zinc-500 text-sm"
-              >
-                아직 등록된 글이 없어요
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -494,7 +500,10 @@ function DetailView({ isAdmin, adminPassword }) {
         viewed = [];
       }
 
-      if (viewed.includes(postId)) return;
+      // 이미 본 글이면 조회수 안 올림
+      if (viewed.includes(postId)) {
+        return;
+      }
 
       const data = await api(`/api/posts/${postId}/view`, {
         method: "POST",
@@ -509,6 +518,7 @@ function DetailView({ isAdmin, adminPassword }) {
       localStorage.setItem(VIEW_LS_KEY, JSON.stringify(next));
     } catch (e) {
       console.error(e);
+      // 조회수 실패해도 사용자에겐 굳이 안 알려도 됨
     }
   }
 
@@ -529,6 +539,8 @@ function DetailView({ isAdmin, adminPassword }) {
         return;
       }
       setPost(found);
+
+      // 🔥 이 브라우저에서 처음 보는 글이면 조회수 +1
       await markViewOnce(found.id);
     } catch (e) {
       console.error(e);
@@ -598,9 +610,7 @@ function DetailView({ isAdmin, adminPassword }) {
         body = { adminPassword };
       } else {
         // 일반 유저: 삭제용 비밀번호 입력받기
-        const pw = window.prompt(
-          "삭제용 비밀번호를 입력하세요.\n(글 작성 시 입력한 비밀번호)"
-        );
+        const pw = window.prompt("삭제용 비밀번호를 입력하세요.");
         if (!pw || !pw.trim()) {
           alert("비밀번호를 입력해야 삭제할 수 있습니다.");
           return;
@@ -613,7 +623,6 @@ function DetailView({ isAdmin, adminPassword }) {
         body: JSON.stringify(body),
       });
 
-      alert("게시글이 삭제되었습니다.");
       nav("/board", { replace: true });
     } catch (e) {
       console.error(e);
@@ -637,9 +646,10 @@ function DetailView({ isAdmin, adminPassword }) {
   async function handleDeleteComment(cid) {
     if (!window.confirm("댓글을 삭제하시겠습니까?")) return;
     try {
-      const data = await api(`/api/posts/${post.id}/comments/${cid}`, {
-        method: "DELETE",
-      });
+      const data = await api(
+        `/api/posts/${post.id}/comments/${cid}`,
+        { method: "DELETE" }
+      );
       setPost(data.post);
     } catch (e) {
       console.error(e);
@@ -839,6 +849,7 @@ function BoardListPage({
     return [...notices, ...others];
   }, [posts, query, onlyPinned, sortKey]);
 
+  // 글 등록: 성공 후 목록 다시 불러오기
   async function handleSubmitNew(payload) {
     try {
       const body = { ...payload };
