@@ -56,13 +56,20 @@ const fmtDate = (ts) => {
 };
 
 /* ─────────────────────────────────────
-   Editor
+   Editor (글쓰기 / 수정 공용)
 ────────────────────────────────────── */
 
 function Editor({ onCancel, onSubmit, isAdmin, initialDraft }) {
-  const [category, setCategory] = useState(initialDraft?.category || "일반");
+  const isEditing = !!initialDraft?.id;
+  const isAdminNewPost = isAdmin && !isEditing;
+
+  const [category, setCategory] = useState(
+    initialDraft?.category || (isAdminNewPost ? "공지" : "일반")
+  );
   const [title, setTitle] = useState(initialDraft?.title || "");
-  const [author, setAuthor] = useState(initialDraft?.author || "");
+  const [author, setAuthor] = useState(
+    initialDraft?.author || (isAdminNewPost ? "Promptree🌲" : "")
+  );
   const [pw, setPw] = useState("");
   const [content, setContent] = useState(initialDraft?.content || "");
   const [images, setImages] = useState(initialDraft?.images || []);
@@ -76,12 +83,15 @@ function Editor({ onCancel, onSubmit, isAdmin, initialDraft }) {
     : ["일반", "프롬프트", "기타"];
 
   useEffect(() => {
-    // location state가 바뀌었을 때도 초기값 반영
     if (!initialDraft) return;
     if (initialDraft.category) setCategory(initialDraft.category);
     if (initialDraft.title) setTitle(initialDraft.title);
     if (initialDraft.author) setAuthor(initialDraft.author);
     if (initialDraft.content) setContent(initialDraft.content);
+    if (Array.isArray(initialDraft.images))
+      setImages(initialDraft.images || []);
+    if (Array.isArray(initialDraft.videos))
+      setVideos(initialDraft.videos || []);
   }, [initialDraft]);
 
   function handleSubmit() {
@@ -104,9 +114,7 @@ function Editor({ onCancel, onSubmit, isAdmin, initialDraft }) {
       const reader = new FileReader();
       reader.onload = () => {
         const item = {
-          id:
-            crypto.randomUUID?.() ??
-            Math.random().toString(36).slice(2),
+          id: crypto.randomUUID?.() ?? Math.random().toString(36).slice(2),
           name: f.name,
           dataUrl: String(reader.result),
         };
@@ -160,18 +168,24 @@ function Editor({ onCancel, onSubmit, isAdmin, initialDraft }) {
           {/* 닉네임/비밀번호 */}
           <div className="flex flex-col gap-2 sm:flex-row">
             <input
-              value={author}
-              onChange={(e) => setAuthor(e.target.value)}
-              placeholder="닉네임(선택)"
-              className="px-3 py-2 rounded-xl border border-zinc-700 bg-[#111117] text-sm text-zinc-100 placeholder:text-zinc-500"
+              value={isAdminNewPost ? "Promptree🌲" : author}
+              onChange={(e) => !isAdminNewPost && setAuthor(e.target.value)}
+              placeholder={isAdminNewPost ? "Promptree🌲" : "닉네임(선택)"}
+              disabled={isAdminNewPost}
+              className={`px-3 py-2 rounded-xl border border-zinc-700 bg-[#111117] text-sm text-zinc-100 placeholder:text-zinc-500 ${
+                isAdminNewPost ? "opacity-80 cursor-not-allowed" : ""
+              }`}
             />
-            <input
-              value={pw}
-              onChange={(e) => setPw(e.target.value)}
-              placeholder="비밀번호(선택)"
-              type="password"
-              className="px-3 py-2 rounded-xl border border-zinc-700 bg-[#111117] text-sm text-zinc-100 placeholder:text-zinc-500"
-            />
+            {/* 관리자 새 글일 때는 비밀번호 굳이 안 받음 */}
+            {!isAdminNewPost && (
+              <input
+                value={pw}
+                onChange={(e) => setPw(e.target.value)}
+                placeholder="비밀번호(선택, 수정/삭제용)"
+                type="password"
+                className="px-3 py-2 rounded-xl border border-zinc-700 bg-[#111117] text-sm text-zinc-100 placeholder:text-zinc-500"
+              />
+            )}
           </div>
 
           {/* 내용 */}
@@ -268,7 +282,7 @@ function Editor({ onCancel, onSubmit, isAdmin, initialDraft }) {
               onClick={handleSubmit}
               className="px-4 py-2 rounded-xl bg-white text-sm font-medium text-black hover:bg-zinc-200"
             >
-              등록
+              {isEditing ? "수정 완료" : "등록"}
             </button>
           </div>
         </div>
@@ -366,173 +380,179 @@ function CommentList({ comments, onDelete }) {
   );
 }
 
-/* 목록 테이블 (PC) + 모바일 카드뷰 */
+/* 목록 테이블 + 모바일 카드뷰 */
 
 function ListTable({ posts, page, pageSize }) {
   const startIndex = (page - 1) * pageSize;
   const slice = posts.slice(startIndex, startIndex + pageSize);
 
-  const renderBadgeClass = (category, pinned) => {
-    if (category === "공지") {
+  const renderBadgeClass = (p) => {
+    const isNotice = p.category === "공지";
+    if (isNotice)
       return "bg-amber-500/10 text-amber-300 border-amber-500/60";
-    }
-    if (category === "프롬프트") {
+    if (p.category === "프롬프트")
       return "bg-violet-500/10 text-violet-300 border-violet-500/40";
-    }
-    if (category === "기타") {
+    if (p.category === "기타")
       return "bg-sky-500/10 text-sky-300 border-sky-500/40";
-    }
-    if (pinned) {
-      return "bg-emerald-500/10 text-emerald-300 border-emerald-500/40";
-    }
     return "bg-zinc-700/20 text-zinc-200 border-zinc-500/40";
   };
 
-  if (slice.length === 0) {
-    return (
-      <div className="rounded-2xl border border-zinc-800 bg-zinc-950/80 py-16 text-center text-sm text-zinc-500">
-        아직 등록된 글이 없어요.
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-3">
-      {/* ✅ 데스크탑: 테이블 (가로 스크롤 없이, md 이상에서만) */}
-      <div className="hidden md:block rounded-2xl border border-zinc-800 bg-zinc-950/80 overflow-hidden">
-        <table className="w-full text-[13px]">
-          <thead className="bg-zinc-900/80 border-b border-zinc-800 text-zinc-400">
-            <tr>
-              <th className="w-16 py-2 font-medium">번호</th>
-              <th className="w-24 font-medium">말머리</th>
-              <th className="text-left font-medium">제목</th>
-              <th className="w-32 font-medium">글쓴이</th>
-              <th className="w-32 font-medium">작성일</th>
-              <th className="w-20 font-medium">조회</th>
-              <th className="w-20 font-medium">추천</th>
-            </tr>
-          </thead>
-          <tbody className="text-zinc-200">
+    <div className="rounded-2xl border border-zinc-800 bg-zinc-950/80">
+      {/* 데스크탑/태블릿: 테이블 */}
+      <div className="hidden sm:block overflow-hidden">
+        <div className="w-full overflow-x-auto">
+          <table className="w-full min-w-[720px] text-[13px]">
+            <thead className="bg-zinc-900/80 border-b border-zinc-800 text-zinc-400">
+              <tr>
+                <th className="w-16 py-2 font-medium">번호</th>
+                <th className="w-24 font-medium">말머리</th>
+                <th className="text-left font-medium">제목</th>
+                <th className="w-32 font-medium">글쓴이</th>
+                <th className="w-32 font-medium">작성일</th>
+                <th className="w-20 font-medium">조회</th>
+                <th className="w-20 font-medium">추천</th>
+              </tr>
+            </thead>
+            <tbody className="text-zinc-200">
+              {slice.map((p, i) => {
+                const no = posts.length - (startIndex + i);
+                const commentCnt = p.comments?.length || 0;
+                const isNotice = p.category === "공지";
+                const badgeClass = renderBadgeClass(p);
+
+                return (
+                  <tr
+                    key={p.id}
+                    className={`border-b border-zinc-800 last:border-0 transition-colors ${
+                      isNotice
+                        ? "bg-zinc-900/80 hover:bg-zinc-900"
+                        : "hover:bg-zinc-900/60"
+                    }`}
+                  >
+                    <td className="text-center py-2 text-zinc-400">{no}</td>
+                    <td className="text-center">
+                      <span
+                        className={`inline-flex items-center justify-center px-2 py-0.5 rounded-full border text-[11px] ${badgeClass}`}
+                      >
+                        {p.category}
+                      </span>
+                    </td>
+                    <td className="py-2">
+                      <Link
+                        to={`/board/${p.id}`}
+                        className={`hover:underline ${
+                          isNotice
+                            ? "font-semibold text-amber-100"
+                            : "text-zinc-50"
+                        }`}
+                      >
+                        <span className="align-middle">{p.title}</span>
+                        {commentCnt ? (
+                          <span className="ml-1 text-xs text-zinc-400 align-middle">
+                            [{commentCnt}]
+                          </span>
+                        ) : null}
+                        {p.pinned && (
+                          <span className="ml-1 text-xs text-amber-300 align-middle">
+                            📌
+                          </span>
+                        )}
+                      </Link>
+                    </td>
+                    <td className="text-center text-zinc-300">
+                      {p.author || "익명"}
+                    </td>
+                    <td className="text-center text-zinc-400">
+                      {fmtDate(p.createdAt)}
+                    </td>
+                    <td className="text-center text-zinc-300">
+                      {p.views || 0}
+                    </td>
+                    <td className="text-center text-zinc-300">
+                      {p.likes || 0}
+                    </td>
+                  </tr>
+                );
+              })}
+              {slice.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={7}
+                    className="py-16 text-center text-zinc-500 text-sm"
+                  >
+                    아직 등록된 글이 없어요
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* 모바일: 카드 리스트 */}
+      <div className="sm:hidden px-3 py-2">
+        {slice.length === 0 ? (
+          <div className="py-10 text-center text-sm text-zinc-500">
+            아직 등록된 글이 없어요
+          </div>
+        ) : (
+          <ul className="flex flex-col gap-2">
             {slice.map((p, i) => {
               const no = posts.length - (startIndex + i);
               const commentCnt = p.comments?.length || 0;
               const isNotice = p.category === "공지";
-              const badgeClass = renderBadgeClass(p.category, p.pinned);
+              const badgeClass = renderBadgeClass(p);
 
               return (
-                <tr
+                <li
                   key={p.id}
-                  className={`border-b border-zinc-800 last:border-0 transition-colors ${
-                    isNotice
-                      ? "bg-zinc-900/80 hover:bg-zinc-900"
-                      : "hover:bg-zinc-900/60"
-                  }`}
+                  className={`rounded-2xl border border-zinc-800 bg-[#0B0B10] p-3`}
                 >
-                  <td className="text-center py-2 text-zinc-400">{no}</td>
-                  <td className="text-center">
-                    <span
-                      className={`inline-flex items-center justify-center px-2 py-0.5 rounded-full border text-[11px] ${badgeClass}`}
-                    >
-                      {p.category}
-                    </span>
-                  </td>
-                  <td className="py-2">
-                    <Link
-                      to={`/board/${p.id}`}
-                      className={`hover:underline ${
+                  <Link to={`/board/${p.id}`} className="block">
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="text-[11px] text-zinc-500">
+                        No.{no}
+                      </div>
+                      <span
+                        className={`inline-flex items-center justify-center px-2 py-0.5 rounded-full border text-[11px] ${badgeClass}`}
+                      >
+                        {p.category}
+                      </span>
+                    </div>
+                    <div
+                      className={`text-[14px] leading-snug ${
                         isNotice
                           ? "font-semibold text-amber-100"
-                          : "text-zinc-50"
+                          : "font-medium text-zinc-50"
                       }`}
                     >
-                      <span className="align-middle">{p.title}</span>
+                      {p.title}
+                      {p.pinned && (
+                        <span className="ml-1 text-xs align-middle">📌</span>
+                      )}
                       {commentCnt ? (
                         <span className="ml-1 text-xs text-zinc-400 align-middle">
                           [{commentCnt}]
                         </span>
                       ) : null}
-                      {p.pinned && (
-                        <span className="ml-1 text-xs text-emerald-300 align-middle">
-                          📌
-                        </span>
-                      )}
-                    </Link>
-                  </td>
-                  <td className="text-center text-zinc-300">
-                    {p.author || "익명"}
-                  </td>
-                  <td className="text-center text-zinc-400">
-                    {fmtDate(p.createdAt)}
-                  </td>
-                  <td className="text-center text-zinc-300">
-                    {p.views || 0}
-                  </td>
-                  <td className="text-center text-zinc-300">
-                    {p.likes || 0}
-                  </td>
-                </tr>
+                    </div>
+                    <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-zinc-500">
+                      <span>글쓴이 {p.author || "익명"}</span>
+                      <span>·</span>
+                      <span>{fmtDate(p.createdAt)}</span>
+                    </div>
+                    <div className="mt-1 flex items-center gap-2 text-[11px] text-zinc-500">
+                      <span>조회 {p.views || 0}</span>
+                      <span>·</span>
+                      <span>추천 {p.likes || 0}</span>
+                    </div>
+                  </Link>
+                </li>
               );
             })}
-          </tbody>
-        </table>
-      </div>
-
-      {/* ✅ 모바일: 카드형 리스트 (가로 스크롤 X) */}
-      <div className="space-y-2 md:hidden">
-        {slice.map((p, i) => {
-          const no = posts.length - (startIndex + i);
-          const commentCnt = p.comments?.length || 0;
-          const isNotice = p.category === "공지";
-          const badgeClass = renderBadgeClass(p.category, p.pinned);
-
-          return (
-            <Link
-              key={p.id}
-              to={`/board/${p.id}`}
-              className="block rounded-2xl border border-zinc-800 bg-zinc-950/90 px-3 py-3.5 active:bg-zinc-900/80"
-            >
-              <div className="flex items-center justify-between gap-2 mb-1">
-                <span
-                  className={`inline-flex items-center px-2 py-0.5 rounded-full border text-[11px] ${badgeClass}`}
-                >
-                  {p.category}
-                  {p.pinned && <span className="ml-1 text-[10px]">📌</span>}
-                </span>
-                <span className="text-[11px] text-zinc-500">
-                  No. {no}
-                </span>
-              </div>
-
-              <div
-                className={`text-[14px] leading-snug line-clamp-2 ${
-                  isNotice
-                    ? "font-semibold text-amber-100"
-                    : "font-medium text-zinc-50"
-                }`}
-              >
-                {p.title}
-                {commentCnt ? (
-                  <span className="ml-1 text-[12px] text-zinc-400">
-                    [{commentCnt}]
-                  </span>
-                ) : null}
-              </div>
-
-              <div className="mt-2 flex items-center justify-between text-[11px] text-zinc-500">
-                <div className="flex items-center gap-2">
-                  <span>{p.author || "익명"}</span>
-                  <span className="w-1 h-1 rounded-full bg-zinc-600" />
-                  <span>{fmtDate(p.createdAt)}</span>
-                </div>
-                <div className="flex items-center gap-2 text-[11px]">
-                  <span>조회 {p.views || 0}</span>
-                  <span>|</span>
-                  <span>추천 {p.likes || 0}</span>
-                </div>
-              </div>
-            </Link>
-          );
-        })}
+          </ul>
+        )}
       </div>
     </div>
   );
@@ -553,6 +573,7 @@ function DetailView({ isAdmin, adminPassword }) {
 
   const [post, setPost] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState(false);
 
   // 🔥 이 브라우저에서 이 글을 처음 볼 때만 조회수 +1
   async function markViewOnce(postId) {
@@ -621,21 +642,13 @@ function DetailView({ isAdmin, adminPassword }) {
     load();
   }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (loading) {
-    return (
-      <div className="p-6 rounded-2xl border border-zinc-800 bg-zinc-950/80 text-sm text-zinc-400">
-        불러오는 중...
-      </div>
-    );
-  }
-  if (!post) return null;
-
-  const alreadyLiked = Array.isArray(post.likedBy)
+  const alreadyLiked = Array.isArray(post?.likedBy)
     ? post.likedBy.includes(currentUserId)
     : false;
-  const isNotice = post.category === "공지";
+  const isNotice = post?.category === "공지";
 
   async function handleLike() {
+    if (!post) return;
     try {
       const data = await api(`/api/posts/${post.id}/like`, {
         method: "POST",
@@ -649,6 +662,7 @@ function DetailView({ isAdmin, adminPassword }) {
   }
 
   async function handlePin() {
+    if (!post) return;
     if (!isAdmin) {
       alert("관리자만 글을 고정할 수 있습니다.");
       return;
@@ -666,6 +680,7 @@ function DetailView({ isAdmin, adminPassword }) {
   }
 
   async function handleDelete() {
+    if (!post) return;
     if (!window.confirm("정말 삭제하시겠습니까?")) return;
 
     try {
@@ -697,6 +712,7 @@ function DetailView({ isAdmin, adminPassword }) {
   }
 
   async function handleAddComment(payload) {
+    if (!post) return;
     try {
       const data = await api(`/api/posts/${post.id}/comments`, {
         method: "POST",
@@ -710,6 +726,7 @@ function DetailView({ isAdmin, adminPassword }) {
   }
 
   async function handleDeleteComment(cid) {
+    if (!post) return;
     if (!window.confirm("댓글을 삭제하시겠습니까?")) return;
     try {
       const data = await api(`/api/posts/${post.id}/comments/${cid}`, {
@@ -720,6 +737,74 @@ function DetailView({ isAdmin, adminPassword }) {
       console.error(e);
       alert("댓글 삭제 중 오류가 발생했습니다.");
     }
+  }
+
+  // 🔧 수정 저장 처리
+  async function handleUpdatePost(payload) {
+    if (!post) return;
+
+    try {
+      const body = { ...payload };
+
+      // 공지 카테고리는 관리자만
+      if (payload.category === "공지" && !isAdmin) {
+        alert("공지 글은 관리자만 설정할 수 있습니다.");
+        return;
+      }
+
+      if (isAdmin && adminPassword) {
+        body.adminPassword = adminPassword;
+      }
+
+      const data = await api(`/api/posts/${post.id}`, {
+        method: "PUT",
+        body: JSON.stringify(body),
+      });
+
+      setPost(data.post);
+      setEditing(false);
+    } catch (e) {
+      console.error(e);
+      if (e.message === "INVALID_PASSWORD") {
+        alert("비밀번호가 올바르지 않아 수정할 수 없습니다.");
+      } else if (e.message === "ADMIN_REQUIRED") {
+        alert("공지 글은 관리자만 수정할 수 있습니다.");
+      } else {
+        alert(e.message || "수정 중 오류가 발생했습니다.");
+      }
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="p-6 rounded-2xl border border-zinc-800 bg-zinc-950/80 text-sm text-zinc-400">
+        불러오는 중...
+      </div>
+    );
+  }
+  if (!post) return null;
+
+  // 🔧 수정 모드일 때는 Editor로 교체
+  if (editing) {
+    return (
+      <div className="grid gap-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-zinc-50">게시글 수정</h2>
+          <button
+            onClick={() => setEditing(false)}
+            className="text-xs text-zinc-400 hover:text-zinc-100"
+          >
+            취소
+          </button>
+        </div>
+        <Editor
+          isAdmin={isAdmin}
+          initialDraft={post}
+          onCancel={() => setEditing(false)}
+          onSubmit={handleUpdatePost}
+        />
+      </div>
+    );
   }
 
   return (
@@ -737,18 +822,19 @@ function DetailView({ isAdmin, adminPassword }) {
               >
                 {post.category}
               </span>
+              <h1
+                className={`text-xl leading-tight ${
+                  isNotice
+                    ? "font-bold text-amber-100"
+                    : "font-semibold text-zinc-50"
+                }`}
+              >
+                {post.title}
+              </h1>
             </div>
-            <h1
-              className={`text-xl leading-tight ${
-                isNotice
-                  ? "font-bold text-amber-100"
-                  : "font-semibold text-zinc-50"
-              }`}
-            >
-              {post.title}
-            </h1>
-            <div className="mt-1 text-[12px] text-zinc-400">
-              글쓴이: {post.author || "익명"} · 추천 {post.likes || 0}
+            <div className="text-[12px] text-zinc-400">
+              글쓴이: {post.author || "익명"} · 추천 {post.likes || 0} · 조회{" "}
+              {post.views || 0}
             </div>
           </div>
           <div className="text-[11px] text-zinc-500 text-right">
@@ -821,6 +907,13 @@ function DetailView({ isAdmin, adminPassword }) {
             {post.pinned ? "고정 해제" : "고정"}
           </button>
         )}
+
+        <button
+          onClick={() => setEditing(true)}
+          className="px-3 py-1.5 rounded-xl border border-zinc-700 bg-[#101018] text-sm text-zinc-100 hover:bg-zinc-900"
+        >
+          수정
+        </button>
 
         <button
           onClick={() => nav("/board")}
@@ -918,12 +1011,15 @@ function BoardListPage({
   async function handleSubmitNew(payload) {
     try {
       const body = { ...payload };
-      if (payload.category === "공지") {
-        if (!isAdmin) {
-          alert("공지 글은 관리자만 작성할 수 있습니다.");
-          return;
-        }
+
+      // 관리자면 항상 adminPassword 함께 보냄 (닉네임 강제용)
+      if (isAdmin && adminPassword) {
         body.adminPassword = adminPassword;
+      }
+
+      if (payload.category === "공지" && !isAdmin) {
+        alert("공지 글은 관리자만 작성할 수 있습니다.");
+        return;
       }
 
       await api("/api/posts", {
@@ -1137,35 +1233,24 @@ export default function Board() {
     };
   }
 
-   async function handleAdminLogin() {
+  async function handleAdminLogin() {
     const pw = window.prompt("관리자 비밀번호를 입력하세요.");
     if (!pw) return;
-
     try {
-      // api() 래퍼 말고 직접 fetch 써서 상태코드 확인
-      const res = await fetch(`${API_BASE}/api/admin/verify`, {
+      const data = await api("/api/admin/verify", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
         body: JSON.stringify({ password: pw }),
       });
-
-      const data = await res.json().catch(() => ({}));
-
-      if (!res.ok || !data.ok) {
-        // 401 같은 경우 여기로 들어옴
-        alert(data.message || "비밀번호가 올바르지 않습니다.");
-        return;
+      if (data.ok) {
+        setIsAdmin(true);
+        setAdminPassword(pw);
+        alert("관리자 모드가 활성화되었습니다.\n새로 작성하는 글의 닉네임은 Promptree🌲로 표시됩니다.");
+      } else {
+        alert("비밀번호가 올바르지 않습니다.");
       }
-
-      // ✅ 성공
-      setIsAdmin(true);
-      setAdminPassword(pw);
-      alert("관리자 모드가 활성화되었습니다.");
     } catch (e) {
       console.error(e);
-      alert("서버에 접속할 수 없습니다. (네트워크/서버 점검 필요)");
+      alert("서버 오류로 관리자 확인에 실패했습니다.");
     }
   }
 

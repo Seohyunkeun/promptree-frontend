@@ -92,56 +92,19 @@ function getPostWithComments(id, cb) {
   });
 }
 
-// ==== 관리자 비밀번호 ====
-// Render 대시보드에는 ADMIN_PASSWORD 로 넣어두고,
-// 예전 BOARD_ADMIN_PW 도 있으면 함께 지원.
-const RAW_ADMIN_PASSWORD =
-  process.env.ADMIN_PASSWORD || process.env.BOARD_ADMIN_PW || "promptree-admin";
-const ADMIN_PASSWORD = RAW_ADMIN_PASSWORD.trim();
+// ==== 관리자 비밀번호 (간단 하드코딩) ====
+// Render 환경변수: BOARD_ADMIN_PW=wnrdma44# (형이 쓰는 비번)
+// 없으면 디폴트 "promptree-admin"
+const ADMIN_PASSWORD = process.env.BOARD_ADMIN_PW || "promptree-admin";
 
 // 관리자 비밀번호 검증
 app.post("/api/admin/verify", (req, res) => {
-  try {
-    const { password } = req.body || {};
-    const input = (password || "").trim();
-
-    // 🔥 디버그 로그
-    console.log("=== ADMIN VERIFY DEBUG ===");
-    console.log("ENV ADMIN_PASSWORD =", JSON.stringify(ADMIN_PASSWORD));
-    console.log("INPUT PASSWORD    =", JSON.stringify(input));
-    console.log("==========================");
-
-    if (!ADMIN_PASSWORD) {
-      return res.status(500).json({
-        ok: false,
-        message: "ADMIN_PASSWORD is not configured on the server.",
-      });
-    }
-
-    if (!input) {
-      return res.status(401).json({
-        ok: false,
-        message: "비밀번호를 입력해주세요.",
-      });
-    }
-
-    if (input === ADMIN_PASSWORD) {
-      return res.json({ ok: true });
-    }
-
-    return res.status(401).json({
-      ok: false,
-      message: "비밀번호가 올바르지 않습니다.",
-    });
-  } catch (err) {
-    console.error("[ADMIN_VERIFY] error:", err);
-    return res.status(500).json({
-      ok: false,
-      message: "서버 내부 오류로 관리자 확인에 실패했습니다.",
-    });
+  const { password } = req.body || {};
+  if (password && password === ADMIN_PASSWORD) {
+    return res.json({ ok: true });
   }
+  return res.status(401).json({ ok: false, error: "INVALID_ADMIN_PASSWORD" });
 });
-
 
 // ==== 게시글 목록 ====
 app.get("/api/posts", (req, res) => {
@@ -186,10 +149,17 @@ app.post("/api/posts", (req, res) => {
     return res.status(400).json({ error: "TITLE_AND_CONTENT_REQUIRED" });
   }
 
+  const isAdmin = adminPassword && adminPassword === ADMIN_PASSWORD;
+
   // 공지면 관리자만
-  if (category === "공지" && (adminPassword || "").trim() !== ADMIN_PASSWORD) {
+  if (category === "공지" && !isAdmin) {
     return res.status(403).json({ error: "ADMIN_REQUIRED" });
   }
+
+  // 🔥 관리자라면 닉네임은 항상 Promptree🌲
+  const finalAuthor = isAdmin
+    ? "Promptree🌲"
+    : (author && author.trim()) || "익명";
 
   const id = nanoid();
   const now = Date.now();
@@ -205,7 +175,7 @@ app.post("/api/posts", (req, res) => {
       id,
       category || "일반",
       title,
-      author || "익명",
+      finalAuthor,
       pwHash || "",
       content,
       JSON.stringify(images || []),
@@ -226,6 +196,82 @@ app.post("/api/posts", (req, res) => {
       });
     }
   );
+});
+
+// ==== 게시글 수정 ====
+app.put("/api/posts/:id", (req, res) => {
+  const { id } = req.params;
+  const {
+    category,
+    title,
+    author,
+    pwHash,
+    content,
+    images = [],
+    videos = [],
+    adminPassword,
+  } = req.body || {};
+
+  if (!title || !content) {
+    return res.status(400).json({ error: "TITLE_AND_CONTENT_REQUIRED" });
+  }
+
+  db.get(`SELECT * FROM posts WHERE id = ?`, [id], (err, row) => {
+    if (err) return res.status(500).json({ error: "DB_ERROR" });
+    if (!row) return res.status(404).json({ error: "NOT_FOUND" });
+
+    const isAdmin = adminPassword && adminPassword === ADMIN_PASSWORD;
+
+    // 🔐 권한 체크
+    if (!isAdmin) {
+      // 비관리자: 비밀번호 필요
+      if (!row.pwHash || !pwHash || row.pwHash !== pwHash) {
+        return res.status(403).json({ error: "INVALID_PASSWORD" });
+      }
+      // 공지글은 관리자만 수정 가능
+      if (row.category === "공지" || category === "공지") {
+        return res.status(403).json({ error: "ADMIN_REQUIRED" });
+      }
+    }
+
+    const now = Date.now();
+
+    const nextCategory = category || row.category || "일반";
+    const nextAuthor = isAdmin
+      ? "Promptree🌲"
+      : (author && author.trim()) || row.author || "익명";
+    const nextPwHash =
+      typeof pwHash === "string" && pwHash.length > 0 ? pwHash : row.pwHash;
+
+    db.run(
+      `
+      UPDATE posts
+      SET category = ?, title = ?, author = ?, pwHash = ?, content = ?,
+          images = ?, videos = ?, updatedAt = ?
+      WHERE id = ?
+    `,
+      [
+        nextCategory,
+        title,
+        nextAuthor,
+        nextPwHash || "",
+        content,
+        JSON.stringify(images || []),
+        JSON.stringify(videos || []),
+        now,
+        id,
+      ],
+      (err2) => {
+        if (err2)
+          return res.status(500).json({ error: "DB_UPDATE_ERROR" });
+
+        getPostWithComments(id, (err3, post) => {
+          if (err3) return res.status(500).json({ error: "DB_ERROR" });
+          res.json({ post });
+        });
+      }
+    );
+  });
 });
 
 // ==== 단일 게시글 조회 ====
@@ -306,7 +352,7 @@ app.post("/api/posts/:id/pin", (req, res) => {
   const { id } = req.params;
   const { adminPassword } = req.body || {};
 
-  if ((adminPassword || "").trim() !== ADMIN_PASSWORD) {
+  if (adminPassword !== ADMIN_PASSWORD) {
     return res.status(403).json({ error: "ADMIN_REQUIRED" });
   }
 
@@ -339,9 +385,7 @@ app.delete("/api/posts/:id", (req, res) => {
     if (err) return res.status(500).json({ error: "DB_ERROR" });
     if (!row) return res.status(404).json({ error: "NOT_FOUND" });
 
-    const isAdmin =
-      (adminPassword || "").trim() &&
-      (adminPassword || "").trim() === ADMIN_PASSWORD;
+    const isAdmin = adminPassword && adminPassword === ADMIN_PASSWORD;
     const canDelete =
       isAdmin || (row.pwHash && pwHash && row.pwHash === pwHash);
 
@@ -380,21 +424,17 @@ app.post("/api/posts/:id/comments", (req, res) => {
       if (err) return res.status(500).json({ error: "DB_ERROR" });
 
       // updatedAt 갱신
-      db.run(
-        `UPDATE posts SET updatedAt = ? WHERE id = ?`,
-        [now, id],
-        () => {
-          getPostWithComments(id, (err2, post) => {
-            if (err2) return res.status(500).json({ error: "DB_ERROR" });
-            res.status(201).json({ post });
-          });
-        }
-      );
+      db.run(`UPDATE posts SET updatedAt = ? WHERE id = ?`, [now, id], () => {
+        getPostWithComments(id, (err2, post) => {
+          if (err2) return res.status(500).json({ error: "DB_ERROR" });
+          res.status(201).json({ post });
+        });
+      });
     }
   );
 });
 
-// ==== 댓글 삭제 (비번체크 없이 간단 버전) ====
+// ==== 댓글 삭제 (간단 버전) ====
 app.delete("/api/posts/:id/comments/:cid", (req, res) => {
   const { id, cid } = req.params;
 
