@@ -1233,24 +1233,43 @@ export default function Board() {
     };
   }
 
+  // ✅ 관리자 로그인: 여기서는 api() 쓰지 않고 직접 fetch 사용
   async function handleAdminLogin() {
     const pw = window.prompt("관리자 비밀번호를 입력하세요.");
     if (!pw) return;
+
     try {
-      const data = await api("/api/admin/verify", {
+      const res = await fetch(`${API_BASE}/api/admin/verify`, {
         method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({ password: pw }),
       });
-      if (data.ok) {
-        setIsAdmin(true);
-        setAdminPassword(pw);
-        alert("관리자 모드가 활성화되었습니다.\n새로 작성하는 글의 닉네임은 Promptree🌲로 표시됩니다.");
-      } else {
+
+      const data = await res.json().catch(() => ({}));
+
+      // 비밀번호 틀림
+      if (res.status === 401 || data?.error === "INVALID_ADMIN_PASSWORD") {
         alert("비밀번호가 올바르지 않습니다.");
+        return;
       }
+
+      // 기타 서버 에러
+      if (!res.ok || data?.ok === false) {
+        alert("서버 오류로 관리자 확인에 실패했습니다.");
+        return;
+      }
+
+      // 성공
+      setIsAdmin(true);
+      setAdminPassword(pw);
+      alert(
+        "관리자 모드가 활성화되었습니다.\n새로 작성하는 글의 닉네임은 Promptree🌲로 표시됩니다."
+      );
     } catch (e) {
       console.error(e);
-      alert("서버 오류로 관리자 확인에 실패했습니다.");
+      alert("네트워크 오류로 관리자 확인에 실패했습니다.");
     }
   }
 
