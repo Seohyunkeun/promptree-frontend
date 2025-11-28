@@ -4,6 +4,7 @@ import { useSearchParams, useNavigate } from "react-router-dom";
 
 /* ─────────────────────────────────────────────
    Promptree 생성기
+   - 한글 한 줄 입력 → 타깃별 롱프롬프트 자동 설계
    - 모바일: [설정 패널] → [입력/결과 카드] → [샘플] → [히스토리]
    - 데스크톱: 좌측 패널 / 우측 메인 2컬럼
    - 전체 가로 스크롤 차단
@@ -51,6 +52,31 @@ const STYLE_TAGS = [
   "네온 조명",
   "얕은 심도",
 ];
+
+/** 단계/프리셋/태그 → 영어 스타일 힌트 매핑  -------------------------------- */
+
+const STAGE_HINTS = {
+  라이팅: "studio lighting, controlled light setup, clean shadows",
+  클래식: "classic balanced composition, natural colors",
+  프라임: "high-end prime lens look, crisp detail, shallow depth of field",
+  시네마틱: "cinematic framing, film look, dramatic lighting",
+};
+
+const PRESET_HINTS = {
+  "사진(일몰)": "golden hour sunset lighting, warm tones, long soft shadows",
+  "사진(정장)": "formal portrait style, clean background, professional look",
+  제품: "product photography, seamless background, soft studio light",
+};
+
+const STYLE_HINTS = {
+  "시네마틱 구도": "cinematic composition",
+  "필름 그레인": "subtle film grain texture",
+  "스튜디오 조명": "studio light setup, softbox key light",
+  "아날로그 필름 느낌": "analog film look, gentle halation, vintage tone",
+  "부드러운 빛 번짐": "soft light bloom, gentle glow",
+  "네온 조명": "neon lighting, vibrant color contrast",
+  "얕은 심도": "shallow depth of field, strong background blur",
+};
 
 const SAMPLE_SET = [
   {
@@ -138,7 +164,7 @@ export default function Generator() {
   const [stage, setStage] = useState("라이팅");
   const [preset, setPreset] = useState("사진(일몰)");
   const [target, setTarget] = useState(TARGETS[0].id);
-  const [input, setInput] = useState("");
+  const [input, setInput] = useState(""); // 🔥 여전히 한 칸짜리 메인 입력
   const [tags, setTags] = useState([]);
   const [output, setOutput] = useState("");
   const [history, setHistory] = useState([]);
@@ -207,20 +233,44 @@ export default function Generator() {
     setRefImagePreview(null);
   };
 
+  /** 🔥 핵심: 한 줄 입력을 타깃별 “얼굴 빵빵한 롱프롬프트”로 바꾸는 엔진 */
   const buildPromptFor = ({
     targetArg,
     stageArg,
+    presetArg,
     inputArg,
     tagsArg,
     refImagePresent,
     refNoteArg,
     lockAppearanceArg,
   }) => {
-    const user = (inputArg || "").trim();
-    const stageText = stageArg ? `, ${stageArg}` : "";
-    const styleTagsText =
-      tagsArg && tagsArg.length ? `, ${tagsArg.join(", ")}` : "";
+    const userKo = (inputArg || "").trim();
 
+    // 단계/프리셋/태그를 영어 스타일 힌트로 합치기
+    const styleHints = [];
+
+    if (stageArg && STAGE_HINTS[stageArg]) {
+      styleHints.push(STAGE_HINTS[stageArg]);
+    }
+    if (presetArg && PRESET_HINTS[presetArg]) {
+      styleHints.push(PRESET_HINTS[presetArg]);
+    }
+    if (tagsArg && tagsArg.length) {
+      styleHints.push(
+        tagsArg
+          .map((t) => STYLE_HINTS[t] || t)
+          .join(", ")
+      );
+    }
+
+    const styleHintsText = styleHints.length
+      ? styleHints.join(", ")
+      : "";
+
+    const stageText = stageArg ? ` (${stageArg})` : "";
+    const presetText = presetArg ? ` / PRESET: ${presetArg}` : "";
+
+    // 참고 이미지 블록
     const referenceBlock = (() => {
       const hasNote = !!(refNoteArg && refNoteArg.trim());
       if (!refImagePresent && !hasNote) return "";
@@ -269,52 +319,124 @@ export default function Generator() {
       return lines.join("\n");
     })();
 
+    /** GEMINI – 이미지 한 장용 메타 프롬프트 */
     if (targetArg === "gemini") {
-      const base =
-        user ||
-        "cinematic portrait, neon city alley, reflections on wet ground";
-      const main = [
-        `${base}${stageText}, photorealistic, highly detailed, 50mm lens, ISO 200, f1.8, softbox key light, rim light, subtle fill, ambient practical lights, shallow depth of field, rule of thirds${styleTagsText}`,
-        "Negative: watermark, logo, text, overexposed highlights, deformed hands, extra fingers, distorted face",
-      ].join("\n");
-      return referenceBlock ? [main, referenceBlock].join("\n\n") : main;
+      const sceneLine =
+        userKo ||
+        "비 오는 네온 시티 골목, 인물 클로즈업, 젖은 바닥 반사, 시네마틱 무드";
+
+      const lines = [
+        "TARGET: GOOGLE GEMINI 2.5 FLASH IMAGE",
+        `STAGE: ${stageArg || "시네마틱"}${presetText}`,
+        "",
+        "GUIDE:",
+        "- Generate a single high-quality image based on the following Korean scene description.",
+        "- Focus on detailed lighting, composition and atmosphere.",
+        "- Return only the final prompt content suitable for an image generation model.",
+        "",
+        `SCENE (KOREAN): ${sceneLine}`,
+      ];
+
+      if (styleHintsText) {
+        lines.push("", `STYLE (ENGLISH HINTS): ${styleHintsText}`);
+      }
+
+      lines.push(
+        "",
+        "TECHNICAL SUGGESTION:",
+        "50mm lens, ISO 200, f1.8, softbox key light, subtle rim light, shallow depth of field, rule of thirds.",
+        "",
+        "NEGATIVE PROMPT:",
+        "watermark, logo, text, overexposed highlights, deformed hands, extra fingers, distorted face"
+      );
+
+      const main = lines.join("\n");
+      return referenceBlock ? `${main}\n\n${referenceBlock}` : main;
     }
 
+    /** VEO – 6~8초 샷 플랜 */
     if (targetArg === "veo") {
-      const base =
-        user ||
-        "camera slowly flying through a neon forest, particles of light drifting in the air";
-      const main = [
-        `Cinematic 6–8 second video at 24fps${stageText}. Scene: ${base}${styleTagsText}.`,
-        "Shot 01 (2s): wide establishing shot with a slow dolly-in through the environment.",
-        "Shot 02 (4–6s): medium hero shot with a gentle pan that follows the main subject.",
-        "Keep motion smooth and coherent lighting. No trademarks, no nudity, no graphic or violent content.",
-      ].join("\n");
-      return referenceBlock ? [main, referenceBlock].join("\n\n") : main;
+      const sceneLine =
+        userKo ||
+        "카메라가 네온 숲 사이를 천천히 날아가며, 나무에서 흘러나오는 빛과 입자가 흐르는 장면";
+      const lines = [
+        "TARGET: GOOGLE VEO 3.1",
+        `STAGE: ${stageArg || "시네마틱"}${presetText}`,
+        "",
+        "GUIDE:",
+        "- Generate a detailed ENGLISH video prompt for a 6–8 second cinematic clip at 24fps.",
+        "- Include shot plan, camera movement, pacing and key transitions.",
+        "- Avoid copyrighted names, logos and explicit or graphic content.",
+        "",
+        "VIDEO SUMMARY (KOREAN):",
+        sceneLine,
+      ];
+
+      if (styleHintsText) {
+        lines.push("", `STYLE (ENGLISH HINTS): ${styleHintsText}`);
+      }
+
+      lines.push(
+        "",
+        "STRUCTURE:",
+        "1) One-sentence logline of the whole clip.",
+        "2) 3–5 numbered shots with framing (wide/medium/close), what moves, and camera motion.",
+        "3) Lighting and overall mood.",
+        "4) How the clip ends by the 8 second mark."
+      );
+
+      const main = lines.join("\n");
+      return referenceBlock ? `${main}\n\n${referenceBlock}` : main;
     }
 
+    /** MIDJOURNEY – /imagine 한 줄 프롬프트 */
     if (targetArg === "mj") {
-      const content =
-        user || "cinematic portrait, soft rim light, highly detailed";
-      const line = `/imagine ${content}${styleTagsText} --ar 3:4 --v 7 --style raw`;
-      return referenceBlock ? [line, referenceBlock].join("\n\n") : line;
+      const base =
+        userKo ||
+        "cinematic portrait, soft rim light, highly detailed illustration";
+      const stylePart = styleHintsText ? `, ${styleHintsText}` : "";
+      const line = `/imagine prompt: ${base}${stylePart} --ar 3:4 --v 7 --style raw --no text --no watermark`;
+
+      return referenceBlock ? `${line}\n\n${referenceBlock}` : line;
     }
 
-    const base =
-      user ||
+    /** SORA – 8초 비디오 클립 설명 */
+    const sceneLineSora =
+      userKo ||
       "dusk city street, one person walking slowly toward camera, traffic lights glowing in the background";
-    const main = [
-      `8 second cinematic video at 24fps${stageText}. Scene: ${base}${styleTagsText}.`,
-      "Camera: gentle handheld sway with a 35mm look, smooth forward movement toward the subject.",
-      "No excessive shake, no text overlay, no logos, no heavy compression artifacts.",
-    ].join("\n");
-    return referenceBlock ? [main, referenceBlock].join("\n\n") : main;
+
+    const lines = [
+      "TARGET: OPENAI SORA 2",
+      `STAGE: ${stageArg || "시네마틱"}${presetText}`,
+      "",
+      "GUIDE:",
+      "- Generate an ENGLISH prompt for an ~8 second cinematic video clip at 24fps.",
+      "- Focus on motion, environment storytelling and transitions.",
+      "- Avoid copyrighted names, logos and explicit or graphic content.",
+      "",
+      "VIDEO PROMPT (KOREAN):",
+      sceneLineSora,
+    ];
+
+    if (styleHintsText) {
+      lines.push("", `STYLE (ENGLISH HINTS): ${styleHintsText}`);
+    }
+
+    lines.push(
+      "",
+      "ENDING:",
+      "- Briefly describe how the clip should end within 8 seconds."
+    );
+
+    const main = lines.join("\n");
+    return referenceBlock ? `${main}\n\n${referenceBlock}` : main;
   };
 
   const buildPrompt = () =>
     buildPromptFor({
       targetArg: target,
       stageArg: stage,
+      presetArg: preset,
       inputArg: input,
       tagsArg: tags,
       refImagePresent: !!refImage,
@@ -340,19 +462,21 @@ export default function Generator() {
 
     const nextTarget = s.target || target;
     const nextStage = s.stage || stage;
+    const nextPreset = s.preset || preset;
     const nextInput = s.text;
     const nextTags = s.tags || [];
 
     setActiveSample(sampleId);
     setTarget(nextTarget);
     setStage(nextStage);
-    if (s.preset) setPreset(s.preset);
+    setPreset(nextPreset);
     setInput(nextInput);
     setTags(nextTags);
 
     const p = buildPromptFor({
       targetArg: nextTarget,
       stageArg: nextStage,
+      presetArg: nextPreset,
       inputArg: nextInput,
       tagsArg: nextTags,
       refImagePresent: !!refImage,
@@ -421,9 +545,10 @@ export default function Generator() {
   };
 
   const clearInput = () => {
-    if (!input) return;
+    if (!input && !refNote) return;
     if (!window.confirm("입력 내용을 모두 지울까요?")) return;
     setInput("");
+    setRefNote("");
   };
 
   const clearTags = () => setTags([]);
@@ -456,7 +581,7 @@ export default function Generator() {
             className="mt-2 sm:mt-0 self-start sm:self-auto h-9 px-3 rounded-xl border border-zinc-800 bg-zinc-900/70 hover:bg-zinc-800 text-xs"
             onClick={() =>
               alert(
-                "사용 가이드\n\n1) 위에서 타깃·단계·프리셋을 고르고\n2) [입력] 탭에서 장면과 참고 이미지를 적은 뒤\n3) [프롬프트 생성] 버튼을 누르세요.\n\n[결과] 탭에서 프롬프트를 복사하거나 게시글로 보낼 수 있습니다."
+                "사용 가이드\n\n1) 위에서 타깃·단계·프리셋을 고르고\n2) [입력] 탭에서 장면을 한글로 한 줄만 적어도 되고,\n   길게 적어도 됩니다.\n3) 태그·참고이미지는 선택사항.\n4) [프롬프트 생성]을 누르면 타깃에 맞는 롱프롬프트가 만들어집니다.\n\n[결과] 탭에서 프롬프트를 복사하거나 게시글로 보낼 수 있습니다."
               )
             }
           >
@@ -540,8 +665,8 @@ export default function Generator() {
                 ))}
               </div>
               <p className="text-[11px] text-zinc-500 leading-5">
-                프리셋은 추천 조합이고, 실제 문장은 형이 직접 쓰는 걸 기준으로
-                잡았어.
+                프리셋은 추천 조합이고, 실제 장면은 형이 한글로 적는 걸 기준으로
+                영어 힌트만 살짝 얹어준다.
               </p>
             </section>
 
@@ -696,7 +821,7 @@ export default function Generator() {
                       />
                     </div>
 
-                    {/* 메인 입력 */}
+                    {/* 메인 입력 – 딱 한 칸 */}
                     <textarea
                       value={input}
                       onChange={(e) => setInput(e.target.value)}
@@ -752,7 +877,6 @@ export default function Generator() {
 
                 {/* 액션 버튼 (모바일 최적화) */}
                 <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:flex-wrap sm:items-center">
-                  {/* 1줄째: 생성 버튼 풀폭 */}
                   <button
                     onClick={onGenerate}
                     className="h-9 px-4 rounded-xl bg-white text-black font-medium hover:bg-zinc-200 text-sm w-full sm:w-auto"
@@ -760,7 +884,6 @@ export default function Generator() {
                     프롬프트 생성
                   </button>
 
-                  {/* 2줄째: 복사 / 글쓰기 버튼 반반 */}
                   <div className="flex gap-2 w-full sm:w-auto">
                     <button
                       onClick={onCopy}
@@ -782,7 +905,6 @@ export default function Generator() {
                     보낼 수 있어요.
                   </span>
                 </div>
-
               </div>
             </div>
 
