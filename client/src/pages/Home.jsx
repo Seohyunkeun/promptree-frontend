@@ -7,68 +7,102 @@ const MODEL_CARDS = [
     tag: "IMAGE",
     title: "Gemini 2.5 Flash Image",
     desc: "정적 이미지 · 묘사 중심",
-    img: "/samples/card-gemini.webp",
+    img: "/samples/home-06-cyberpunk-girl.webp", // 사이버펑크 소녀
     target: "gemini",
     stage: "시네마틱",
     preset: "사진(일몰)",
+    shape: "tall",
   },
   {
     id: "veo",
     tag: "VIDEO",
     title: "Veo 3.1",
     desc: "비디오 · 샷 플랜/카메라 동선",
-    img: "/samples/card-veo.webp",
+    img: "/samples/home-04-truck-camp-pixel.webp", // 캠핑 트럭
     target: "veo",
     stage: "시네마틱",
     preset: "사진(일몰)",
+    shape: "tall",
   },
   {
     id: "mj",
     tag: "IMAGE",
     title: "Midjourney (V7)",
     desc: "/imagine · 스타일 시트",
-    img: "/samples/card-mj.webp",
+    img: "/samples/home-05-bart-rapper.webp", // 바트 래퍼
     target: "mj",
     stage: "프라임",
     preset: "사진(정장)",
+    shape: "tall",
   },
   {
     id: "sora",
     tag: "VIDEO",
     title: "OpenAI Sora 2",
     desc: "8초 시네마틱 클립",
-    img: "/samples/card-sora.webp",
+    img: "/samples/home-03-spongebob-gang.webp", // 스폰지밥 갱
     target: "sora",
     stage: "시네마틱",
     preset: "사진(일몰)",
+    shape: "square",
   },
 ];
 
-// 메인 하단 샘플 (이미지는 형이 쓰고 있는 카드 이미지 재활용)
+// 메인 하단 샘플
 const SAMPLE_CARDS = [
   {
-    id: "sample-gemini-neon",
-    title: "네온 골목 인물샷 (이미지)",
+    id: "sample-shinchan",
+    title: "짱구 이레즈미 패밀리 (이미지)",
     target: "gemini",
-    sampleId: "gemini-neon-city",
-    img: "/samples/card-gemini.webp",
-    desc: "비 오는 네온 골목, 시네마틱 인물샷",
+    sampleId: "shinchan-yakuza",
+    img: "/samples/home-01-shinchan-yakuza.webp",
+    desc: "이레즈미 풀 세트로 맞춘 짱구 크루 일러스트",
+    shape: "wide",
   },
   {
-    id: "sample-veo-clinic",
-    title: "미래형 감정 클리닉 (영상)",
-    target: "veo",
-    sampleId: "veo-emotion-clinic",
-    img: "/samples/card-veo.webp",
-    desc: "감정을 업로드하는 SF 클리닉 샷 플랜",
+    id: "sample-witch",
+    title: "마녀의 발코니 작업실 (이미지)",
+    target: "gemini",
+    sampleId: "witch-balcony",
+    img: "/samples/home-02-witch-balcony-pixel.webp",
+    desc: "도시 위 발코니에서 작업하는 마녀와 고래 소환",
+    shape: "wide",
   },
   {
-    id: "sample-mj-fashion",
-    title: "옥상 패션 룩북 (이미지)",
+    id: "sample-sponge",
+    title: "스폰지밥 & 패트릭 갱 (이미지)",
     target: "mj",
-    sampleId: "mj-fashion-lookbook",
-    img: "/samples/card-mj.webp",
-    desc: "골든 아워 룩북 스타일",
+    sampleId: "spongebob-gang",
+    img: "/samples/home-03-spongebob-gang.webp",
+    desc: "그래피티 거리에서 포즈 잡는 스폰지밥 듀오",
+    shape: "square",
+  },
+  {
+    id: "sample-truck",
+    title: "트럭 생존 베이스 캠핑 (이미지)",
+    target: "veo",
+    sampleId: "truck-camp",
+    img: "/samples/home-04-truck-camp-pixel.webp",
+    desc: "트럭 위 돔 하우스와 캠핑 파티, 도트 스타일",
+    shape: "tall",
+  },
+  {
+    id: "sample-bart",
+    title: "힙합 바트 스트리트 샷 (이미지)",
+    target: "mj",
+    sampleId: "bart-rapper",
+    img: "/samples/home-05-bart-rapper.webp",
+    desc: "체인 잔뜩 걸고 있는 스트릿 바트",
+    shape: "tall",
+  },
+  {
+    id: "sample-cyber",
+    title: "사이버펑크 골목 전사 (이미지)",
+    target: "gemini",
+    sampleId: "cyberpunk-girl",
+    img: "/samples/home-06-cyberpunk-girl.webp",
+    desc: "비 내리는 네온 골목에서 서 있는 여성 전사",
+    shape: "tall",
   },
 ];
 
@@ -82,6 +116,12 @@ export default function Home() {
     if (options.preset) params.set("preset", options.preset);
     if (options.sample) params.set("sample", options.sample);
     navigate(`/generator?${params.toString()}`);
+  };
+
+  const getAspectClass = (shape) => {
+    if (shape === "square") return "aspect-square";
+    if (shape === "tall") return "aspect-[9/16]";
+    return "aspect-[16/9]"; // wide 기본
   };
 
   return (
@@ -105,14 +145,14 @@ export default function Home() {
                 이미지는 Gemini, 영상은 Veo·Sora, 스타일은 Midjourney.
                 <br className="hidden sm:block" />
                 형은 한국어로 장면만 적으면 되고, 나머지 롱프롬프트 설계는
-                여기서 다 합니다.
+                여기서 다 한다고 보면 됨.
               </p>
             </div>
 
             <ul className="space-y-1.5 text-xs sm:text-sm text-zinc-300">
-              <li>• 이미지/영상 모델별 포맷에 맞춰 자동으로 구조화된 프롬프트</li>
+              <li>• 이미지/영상 모델별 포맷에 맞춰 자동 구조화된 프롬프트</li>
               <li>• 참고 이미지 + “외형 유지” 옵션으로 캐릭터 일관성 유지</li>
-              <li>• 한 번 만든 프롬프트는 히스토리와 게시판에 그대로 저장</li>
+              <li>• 한 번 만든 프롬프트는 히스토리·게시판에서 계속 재사용</li>
             </ul>
 
             <div className="flex flex-wrap gap-3">
@@ -138,8 +178,8 @@ export default function Home() {
             </div>
 
             <p className="text-[11px] sm:text-xs text-zinc-500">
-              지금은 베타 버전이라, 버그 제보/아이디어는 게시판에 자유롭게
-              남겨줘도 됨 🙌
+              지금은 베타 버전이라, 버그 제보/아이디어는 게시판에 편하게 남겨줘
+              🙌
             </p>
           </div>
 
@@ -188,7 +228,11 @@ export default function Home() {
                     <p className="text-xs text-zinc-400">{card.desc}</p>
                   </div>
                   <div className="relative mt-auto">
-                    <div className="aspect-[16/9] w-full overflow-hidden">
+                    <div
+                      className={`${getAspectClass(
+                        card.shape
+                      )} w-full overflow-hidden`}
+                    >
                       <img
                         src={card.img}
                         alt={card.title}
@@ -241,7 +285,7 @@ export default function Home() {
                 key={s.id}
                 className="min-w-[220px] max-w-[260px] rounded-2xl border border-zinc-800 bg-zinc-950/80 overflow-hidden flex flex-col"
               >
-                <div className="aspect-[16/9] w-full">
+                <div className={`${getAspectClass(s.shape)} w-full`}>
                   <img
                     src={s.img}
                     alt={s.title}
