@@ -20,7 +20,11 @@ app.use(
 app.use(express.json({ limit: "5mb" }));
 
 // ==== DB 세팅 ====
-const dbPath = path.join(__dirname, "board.db");
+// - 로컬: server/board.db 사용
+// - Render: BOARD_DB_PATH=/data/board.db 로 설정해서, 디스크에 저장
+const dbPath = process.env.BOARD_DB_PATH || path.join(__dirname, "board.db");
+console.log("📌 Using SQLite DB at:", dbPath);
+
 const db = new sqlite3.Database(dbPath);
 
 // 테이블 생성
