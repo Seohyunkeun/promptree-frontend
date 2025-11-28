@@ -366,107 +366,179 @@ function CommentList({ comments, onDelete }) {
   );
 }
 
-/* 목록 테이블 */
+/* 목록 테이블 + 모바일 카드뷰 */
 
 function ListTable({ posts, page, pageSize }) {
   const startIndex = (page - 1) * pageSize;
   const slice = posts.slice(startIndex, startIndex + pageSize);
 
+  const renderBadgeClass = (p) => {
+    const isNotice = p.category === "공지";
+    if (isNotice)
+      return "bg-amber-500/10 text-amber-300 border-amber-500/60";
+    if (p.category === "프롬프트")
+      return "bg-violet-500/10 text-violet-300 border-violet-500/40";
+    if (p.category === "기타")
+      return "bg-sky-500/10 text-sky-300 border-sky-500/40";
+    return "bg-zinc-700/20 text-zinc-200 border-zinc-500/40";
+  };
+
   return (
-    <div className="rounded-2xl border border-zinc-800 bg-zinc-950/80 overflow-hidden">
-      {/* 🔥 모바일에서 가로 스크롤 가능하게 래퍼 추가 */}
-      <div className="w-full overflow-x-auto">
-        <table className="w-full min-w-[720px] text-[13px]">
-          <thead className="bg-zinc-900/80 border-b border-zinc-800 text-zinc-400">
-            <tr>
-              <th className="w-16 py-2 font-medium">번호</th>
-              <th className="w-24 font-medium">말머리</th>
-              <th className="text-left font-medium">제목</th>
-              <th className="w-32 font-medium">글쓴이</th>
-              <th className="w-32 font-medium">작성일</th>
-              <th className="w-20 font-medium">조회</th>
-              <th className="w-20 font-medium">추천</th>
-            </tr>
-          </thead>
-          <tbody className="text-zinc-200">
+    <div className="rounded-2xl border border-zinc-800 bg-zinc-950/80">
+      {/* 데스크탑/태블릿: 테이블 */}
+      <div className="hidden sm:block overflow-hidden">
+        <div className="w-full overflow-x-auto">
+          <table className="w-full min-w-[720px] text-[13px]">
+            <thead className="bg-zinc-900/80 border-b border-zinc-800 text-zinc-400">
+              <tr>
+                <th className="w-16 py-2 font-medium">번호</th>
+                <th className="w-24 font-medium">말머리</th>
+                <th className="text-left font-medium">제목</th>
+                <th className="w-32 font-medium">글쓴이</th>
+                <th className="w-32 font-medium">작성일</th>
+                <th className="w-20 font-medium">조회</th>
+                <th className="w-20 font-medium">추천</th>
+              </tr>
+            </thead>
+            <tbody className="text-zinc-200">
+              {slice.map((p, i) => {
+                const no = posts.length - (startIndex + i);
+                const commentCnt = p.comments?.length || 0;
+                const isNotice = p.category === "공지";
+                const badgeClass = renderBadgeClass(p);
+
+                return (
+                  <tr
+                    key={p.id}
+                    className={`border-b border-zinc-800 last:border-0 transition-colors ${
+                      isNotice
+                        ? "bg-zinc-900/80 hover:bg-zinc-900"
+                        : "hover:bg-zinc-900/60"
+                    }`}
+                  >
+                    <td className="text-center py-2 text-zinc-400">{no}</td>
+                    <td className="text-center">
+                      <span
+                        className={`inline-flex items-center justify-center px-2 py-0.5 rounded-full border text-[11px] ${badgeClass}`}
+                      >
+                        {p.category}
+                      </span>
+                    </td>
+                    <td className="py-2">
+                      <Link
+                        to={`/board/${p.id}`}
+                        className={`hover:underline ${
+                          isNotice
+                            ? "font-semibold text-amber-100"
+                            : "text-zinc-50"
+                        }`}
+                      >
+                        <span className="align-middle">{p.title}</span>
+                        {commentCnt ? (
+                          <span className="ml-1 text-xs text-zinc-400 align-middle">
+                            [{commentCnt}]
+                          </span>
+                        ) : null}
+                        {p.pinned && (
+                          <span className="ml-1 text-xs text-amber-300 align-middle">
+                            📌
+                          </span>
+                        )}
+                      </Link>
+                    </td>
+                    <td className="text-center text-zinc-300">
+                      {p.author || "익명"}
+                    </td>
+                    <td className="text-center text-zinc-400">
+                      {fmtDate(p.createdAt)}
+                    </td>
+                    <td className="text-center text-zinc-300">
+                      {p.views || 0}
+                    </td>
+                    <td className="text-center text-zinc-300">
+                      {p.likes || 0}
+                    </td>
+                  </tr>
+                );
+              })}
+              {slice.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={7}
+                    className="py-16 text-center text-zinc-500 text-sm"
+                  >
+                    아직 등록된 글이 없어요
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* 모바일: 카드 리스트 */}
+      <div className="sm:hidden px-3 py-2">
+        {slice.length === 0 ? (
+          <div className="py-10 text-center text-sm text-zinc-500">
+            아직 등록된 글이 없어요
+          </div>
+        ) : (
+          <ul className="flex flex-col gap-2">
             {slice.map((p, i) => {
               const no = posts.length - (startIndex + i);
               const commentCnt = p.comments?.length || 0;
               const isNotice = p.category === "공지";
-              const badgeClass = isNotice
-                ? "bg-amber-500/10 text-amber-300 border-amber-500/60"
-                : p.category === "프롬프트"
-                ? "bg-violet-500/10 text-violet-300 border-violet-500/40"
-                : p.category === "기타"
-                ? "bg-sky-500/10 text-sky-300 border-sky-500/40"
-                : "bg-zinc-700/20 text-zinc-200 border-zinc-500/40";
+              const badgeClass = renderBadgeClass(p);
 
               return (
-                <tr
+                <li
                   key={p.id}
-                  className={`border-b border-zinc-800 last:border-0 transition-colors ${
-                    isNotice
-                      ? "bg-zinc-900/80 hover:bg-zinc-900"
-                      : "hover:bg-zinc-900/60"
-                  }`}
+                  className={`rounded-2xl border border-zinc-800 bg-[#0B0B10] p-3`}
                 >
-                  <td className="text-center py-2 text-zinc-400">{no}</td>
-                  <td className="text-center">
-                    <span
-                      className={`inline-flex items-center justify-center px-2 py-0.5 rounded-full border text-[11px] ${badgeClass}`}
-                    >
-                      {p.category}
-                    </span>
-                  </td>
-                  <td className="py-2">
-                    <Link
-                      to={`/board/${p.id}`}
-                      className={`hover:underline ${
+                  <Link to={`/board/${p.id}`} className="block">
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="text-[11px] text-zinc-500">
+                        No.{no}
+                      </div>
+                      <span
+                        className={`inline-flex items-center justify-center px-2 py-0.5 rounded-full border text-[11px] ${badgeClass}`}
+                      >
+                        {p.category}
+                      </span>
+                    </div>
+                    <div
+                      className={`text-[14px] leading-snug ${
                         isNotice
                           ? "font-semibold text-amber-100"
-                          : "text-zinc-50"
+                          : "font-medium text-zinc-50"
                       }`}
                     >
-                      <span className="align-middle">{p.title}</span>
+                      {p.title}
+                      {p.pinned && (
+                        <span className="ml-1 text-xs align-middle">📌</span>
+                      )}
                       {commentCnt ? (
                         <span className="ml-1 text-xs text-zinc-400 align-middle">
                           [{commentCnt}]
                         </span>
                       ) : null}
-                      {p.pinned && (
-                        <span className="ml-1 text-xs text-amber-300 align-middle">
-                          📌
-                        </span>
-                      )}
-                    </Link>
-                  </td>
-                  <td className="text-center text-zinc-300">
-                    {p.author || "익명"}
-                  </td>
-                  <td className="text-center text-zinc-400">
-                    {fmtDate(p.createdAt)}
-                  </td>
-                  <td className="text-center text-zinc-300">
-                    {p.views || 0}
-                  </td>
-                  <td className="text-center text-zinc-300">
-                    {p.likes || 0}
-                  </td>
-                </tr>
+                    </div>
+                    <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-zinc-500">
+                      <span>글쓴이 {p.author || "익명"}</span>
+                      <span>·</span>
+                      <span>{fmtDate(p.createdAt)}</span>
+                    </div>
+                    <div className="mt-1 flex items-center gap-2 text-[11px] text-zinc-500">
+                      <span>조회 {p.views || 0}</span>
+                      <span>·</span>
+                      <span>추천 {p.likes || 0}</span>
+                    </div>
+                  </Link>
+                </li>
               );
             })}
-            {slice.length === 0 && (
-              <tr>
-                <td
-                  colSpan={7}
-                  className="py-16 text-center text-zinc-500 text-sm"
-                >
-                  아직 등록된 글이 없어요
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+          </ul>
+        )}
       </div>
     </div>
   );
