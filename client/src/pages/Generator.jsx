@@ -750,32 +750,39 @@ export default function Generator() {
                   </>
                 )}
 
-                {/* 액션 버튼 */}
-                <div className="flex flex-wrap items-center gap-2 pt-1">
+                {/* 액션 버튼 (모바일 최적화) */}
+                <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:flex-wrap sm:items-center">
+                  {/* 1줄째: 생성 버튼 풀폭 */}
                   <button
                     onClick={onGenerate}
-                    className="h-9 px-4 rounded-xl bg-white text-black font-medium hover:bg-zinc-200 text-sm flex-1 sm:flex-none"
+                    className="h-9 px-4 rounded-xl bg-white text-black font-medium hover:bg-zinc-200 text-sm w-full sm:w-auto"
                   >
                     프롬프트 생성
                   </button>
-                  <button
-                    onClick={onCopy}
-                    className="h-9 px-4 rounded-xl border border-zinc-800 bg-zinc-900/80 hover:bg-zinc-800 text-sm flex-1 sm:flex-none"
-                  >
-                    {copyButtonLabel}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={goToBoardWrite}
-                    className="h-9 px-4 rounded-xl border border-emerald-500/60 bg-emerald-500/10 text-emerald-300 text-sm hover:bg-emerald-500/20 flex-1 sm:flex-none"
-                  >
-                    이 프롬프트로 게시글 쓰기
-                  </button>
+
+                  {/* 2줄째: 복사 / 글쓰기 버튼 반반 */}
+                  <div className="flex gap-2 w-full sm:w-auto">
+                    <button
+                      onClick={onCopy}
+                      className="h-9 px-4 rounded-xl border border-zinc-800 bg-zinc-900/80 hover:bg-zinc-800 text-xs sm:text-sm flex-1 sm:flex-none whitespace-nowrap"
+                    >
+                      {copyButtonLabel}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={goToBoardWrite}
+                      className="h-9 px-4 rounded-xl border border-emerald-500/60 bg-emerald-500/10 text-emerald-300 text-xs sm:text-sm flex-1 sm:flex-none whitespace-nowrap"
+                    >
+                      이 프롬프트로 게시글 쓰기
+                    </button>
+                  </div>
+
                   <span className="w-full text-[10px] sm:text-xs text-zinc-500">
-                    결과 탭에서 프롬프트를 확인·복사하거나 게시판으로 보낼 수
-                    있어요.
+                    생성 후 결과 탭에서 프롬프트를 확인·복사하거나 게시판으로
+                    보낼 수 있어요.
                   </span>
                 </div>
+
               </div>
             </div>
 
