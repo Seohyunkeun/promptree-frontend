@@ -3,9 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 
 /* ─────────────────────────────────────────────
-   Promptree 생성기 (모바일 우선 레이아웃)
-   - 모바일: 메인(입력/결과) 먼저, 설정 패널은 아래
-   - 데스크톱: 좌측 패널 / 우측 메인 2컬럼
+   Promptree 생성기 (모바일 우선 + 가로스크롤 차단)
 ────────────────────────────────────────────── */
 
 const LS_HISTORY = "pt_gen_history_v4";
@@ -18,7 +16,6 @@ const TARGETS = [
   { id: "sora", label: "OpenAI Sora 2" },
 ];
 
-// 타깃별 설명/플레이스홀더
 const TARGET_META = {
   gemini: {
     subtitle: "정적 이미지 · 묘사 중심",
@@ -52,9 +49,7 @@ const STYLE_TAGS = [
   "얕은 심도",
 ];
 
-// 샘플 세트
 const SAMPLE_SET = [
-  // GEMINI
   {
     id: "gemini-neon-city",
     label: "네온 시티 인물샷",
@@ -73,7 +68,6 @@ const SAMPLE_SET = [
     text: "심플한 흰 배경 위에 하이엔드 PVC 피규어 하나가 중앙에 세워져 있고, 부드러운 상단 소프트 라이트와 약한 그림자가 드리워져 있는 제품 촬영.",
     tags: ["스튜디오 조명", "부드러운 빛 번짐"],
   },
-  // MJ
   {
     id: "mj-fashion-lookbook",
     label: "야외 패션 룩북",
@@ -92,7 +86,6 @@ const SAMPLE_SET = [
     text: "미래 도시 네온 배경 앞에 서 있는 여성 사이버펑크 캐릭터, 짧은 헤어와 홀로그램 재킷, 정면 상반신 포즈, 강렬한 눈빛과 대비 높은 색감.",
     tags: ["네온 조명"],
   },
-  // VEO
   {
     id: "veo-emotion-clinic",
     label: "미래형 감정 클리닉",
@@ -102,7 +95,6 @@ const SAMPLE_SET = [
     text: "감정을 데이터로 업로드하는 미래형 정신과 대기실, 환자들이 투명한 캡슐 의자에 앉아 있고, 벽면엔 감정 그래프가 떠 있는 홀로그램 스크린이 줄지어 있음.",
     tags: ["시네마틱 구도", "아날로그 필름 느낌"],
   },
-  // SORA
   {
     id: "sora-slow-walk",
     label: "슬로우 워킹 시네마틱",
@@ -148,10 +140,9 @@ export default function Generator() {
   const [output, setOutput] = useState("");
   const [history, setHistory] = useState([]);
   const [activeSample, setActiveSample] = useState(null);
-  const [activeTab, setActiveTab] = useState("input"); // "input" | "result"
+  const [activeTab, setActiveTab] = useState("input");
   const [historyOpen, setHistoryOpen] = useState(false);
 
-  // 참고 이미지 + 설명 + 외형 유지 상태
   const [refImage, setRefImage] = useState(null);
   const [refImagePreview, setRefImagePreview] = useState(null);
   const [refNote, setRefNote] = useState("");
@@ -159,7 +150,6 @@ export default function Generator() {
 
   const outRef = useRef(null);
 
-  // 히스토리만 로드
   useEffect(() => {
     try {
       const h = JSON.parse(localStorage.getItem(LS_HISTORY) || "[]");
@@ -169,7 +159,6 @@ export default function Generator() {
     }
   }, []);
 
-  // URL 쿼리 → 상태 반영 (target / stage / preset / sample)
   useEffect(() => {
     const targetParam = searchParams.get("target");
     const stageParam = searchParams.get("stage");
@@ -179,18 +168,9 @@ export default function Generator() {
     if (targetParam && TARGETS.some((x) => x.id === targetParam)) {
       setTarget(targetParam);
     }
-
-    if (stageParam) {
-      setStage(stageParam);
-    }
-
-    if (presetParam) {
-      setPreset(presetParam);
-    }
-
-    if (sampleParam) {
-      applySample(sampleParam);
-    }
+    if (stageParam) setStage(stageParam);
+    if (presetParam) setPreset(presetParam);
+    if (sampleParam) applySample(sampleParam);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
@@ -207,31 +187,23 @@ export default function Generator() {
     );
   };
 
-  const applyPreset = (name) => {
-    setPreset(name);
-  };
+  const applyPreset = (name) => setPreset(name);
 
-  // 참고 이미지 핸들러
   const handleRefImageChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (refImagePreview) {
-      URL.revokeObjectURL(refImagePreview);
-    }
+    if (refImagePreview) URL.revokeObjectURL(refImagePreview);
     setRefImage(file);
     const url = URL.createObjectURL(file);
     setRefImagePreview(url);
   };
 
   const clearRefImage = () => {
-    if (refImagePreview) {
-      URL.revokeObjectURL(refImagePreview);
-    }
+    if (refImagePreview) URL.revokeObjectURL(refImagePreview);
     setRefImage(null);
     setRefImagePreview(null);
   };
 
-  // 공통 프롬프트 빌더
   const buildPromptFor = ({
     targetArg,
     stageArg,
@@ -397,10 +369,7 @@ export default function Generator() {
     setActiveTab("result");
     setTimeout(() => {
       if (outRef.current) {
-        outRef.current.scrollIntoView({
-          behavior: "smooth",
-          block: "center",
-        });
+        outRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
       }
     }, 0);
   };
@@ -415,10 +384,7 @@ export default function Generator() {
     setActiveTab("result");
     setTimeout(() => {
       if (outRef.current) {
-        outRef.current.scrollIntoView({
-          behavior: "smooth",
-          block: "center",
-        });
+        outRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
       }
     }, 0);
   };
@@ -434,20 +400,13 @@ export default function Generator() {
     }
   };
 
-  // 🔥 생성된 프롬프트를 게시판 글쓰기로 넘기는 부분
   const goToBoardWrite = () => {
     if (!output) {
       alert("먼저 프롬프트를 생성한 뒤 게시글로 보내주세요.");
       return;
     }
     navigate("/board/write", {
-      state: {
-        // Board.jsx 에서 state.prompt 로 받음
-        prompt: output,
-        target,
-        stage,
-        preset,
-      },
+      state: { prompt: output, target, stage, preset },
     });
   };
 
@@ -478,9 +437,9 @@ export default function Generator() {
   const copyButtonLabel = COPY_BUTTON_LABEL[target] || "프롬프트 복사";
 
   return (
-    <div className="bg-[#06060A] min-h-[calc(100vh-64px)] text-gray-100">
+    <div className="bg-[#06060A] min-h-[calc(100vh-64px)] text-gray-100 overflow-x-hidden">
       <div className="max-w-6xl mx-auto px-3 sm:px-4 py-4 sm:py-6 space-y-4 sm:space-y-6">
-        {/* 상단 헤더 */}
+        {/* 헤더 */}
         <header className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-lg sm:text-2xl font-semibold tracking-[-0.03em] text-zinc-50">
@@ -502,13 +461,10 @@ export default function Generator() {
           </button>
         </header>
 
-        {/* 메인 레이아웃
-            - 모바일: 메인(입력/결과) → 설정 패널 순서
-            - 데스크톱: 설정 패널(좌) / 메인(우) 2컬럼 */}
+        {/* 메인 레이아웃 (모바일 1열, lg부터 2열) */}
         <div className="grid gap-4 lg:grid-cols-[minmax(0,260px),minmax(0,1fr)]">
-          {/* 모바일에서 메인 먼저 보이게: order-1 / lg:order-2 */}
+          {/* 메인 카드 (입력/결과) */}
           <section className="order-1 lg:order-2 space-y-4">
-            {/* 입력/결과 카드 */}
             <div className="rounded-2xl border border-zinc-800 bg-zinc-950/70 backdrop-blur-sm overflow-hidden">
               {/* 탭 헤더 */}
               <div className="px-3 sm:px-4 pt-3 border-b border-zinc-800/80">
@@ -525,7 +481,7 @@ export default function Generator() {
                   </div>
                   <div className="text-[10px] sm:text-[11px] text-zinc-500 text-right shrink-0">
                     <div>입력 글자수: {charCount}</div>
-                    <div>입력 토큰 추정: {inputTokenEstimate}</div>
+                    <div>입력 토큰: {inputTokenEstimate}</div>
                     <div>결과 토큰: {outputTokenCount}</div>
                   </div>
                 </div>
@@ -555,11 +511,11 @@ export default function Generator() {
                 </div>
               </div>
 
-              {/* 탭 내용 */}
+              {/* 탭 본문 */}
               <div className="p-3 sm:p-4 space-y-4">
                 {activeTab === "input" ? (
                   <>
-                    {/* 참고 이미지 업로드 + 외형 유지 */}
+                    {/* 참고 이미지 영역 */}
                     <div className="space-y-2">
                       <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
                         <h2 className="text-sm font-medium text-zinc-200">
@@ -568,9 +524,6 @@ export default function Generator() {
                         <span className="text-[10px] sm:text-[11px] text-zinc-500 text-left sm:text-right">
                           업로드하면 프롬프트에 &quot;참고 이미지 기반&quot;
                           안내가 자동으로 들어갑니다.
-                          <br className="hidden sm:block" />
-                          이미지는 참고용이라 완전히 동일하게 재현되지는 않을 수
-                          있어요.
                         </span>
                       </div>
                       <label className="flex items-center justify-between gap-3 rounded-xl border border-dashed border-zinc-700 bg-zinc-950/60 px-3 py-2 text-xs text-zinc-400 hover:border-zinc-500 hover:bg-zinc-900/60 cursor-pointer">
@@ -579,7 +532,7 @@ export default function Generator() {
                             이미지 업로드
                           </span>
                           <span className="text-[11px] text-zinc-500">
-                            PNG, JPG 등 이미지 파일만 / 최대 1개
+                            PNG, JPG 등 이미지 / 최대 1개
                           </span>
                         </div>
                         <div className="rounded-lg border border-zinc-700 px-2 py-1 text-[11px]">
@@ -626,7 +579,7 @@ export default function Generator() {
                           <span>캐릭터 외형 그대로 유지</span>
                         </label>
                         <span className="text-[10px] sm:text-[11px] text-zinc-500">
-                          OFF 시 스타일·분위기만 참고합니다.
+                          OFF 시 스타일·분위기만 참고.
                         </span>
                       </div>
                       <textarea
@@ -634,20 +587,18 @@ export default function Generator() {
                         onChange={(e) => setRefNote(e.target.value)}
                         rows={2}
                         className="w-full bg-transparent outline-none text-[12px] leading-6 placeholder:text-zinc-600 border border-zinc-800/80 rounded-xl px-3 py-2 max-h-[80px] scrollbar-thin"
-                        placeholder="참고 이미지에 대한 설명이 있으면 한글로 적어주세요. (예: 이 캐릭터는 래퍼, 문신과 금목걸이만 추가)"
+                        placeholder="참고 이미지 설명이 있으면 한글로 적어주세요."
                       />
                     </div>
 
                     {/* 메인 입력 */}
-                    <div className="space-y-1">
-                      <textarea
-                        value={input}
-                        onChange={(e) => setInput(e.target.value)}
-                        rows={6}
-                        className="w-full bg-transparent outline-none text-[13px] sm:text-[15px] leading-6 sm:leading-7 placeholder:text-zinc-600 border border-zinc-800/80 rounded-xl px-3 py-2 min-h-[160px] sm:min-h-[200px] max-h-[50vh] scrollbar-thin"
-                        placeholder={inputPlaceholder}
-                      />
-                    </div>
+                    <textarea
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      rows={6}
+                      className="w-full bg-transparent outline-none text-[13px] sm:text-[15px] leading-6 sm:leading-7 placeholder:text-zinc-600 border border-zinc-800/80 rounded-xl px-3 py-2 min-h-[160px] sm:min-h-[200px] max-h-[50vh] scrollbar-thin"
+                      placeholder={inputPlaceholder}
+                    />
 
                     {/* 스타일 태그 */}
                     <div>
@@ -679,7 +630,6 @@ export default function Generator() {
                   </>
                 ) : (
                   <>
-                    {/* 타깃별 사용처 안내 */}
                     <div className="text-[10px] sm:text-[11px] text-zinc-500">
                       {currentUsageLabel} · 이 텍스트 전체를 복사해서 해당 모델
                       입력 칸에 붙여넣으면 됩니다.
@@ -695,7 +645,7 @@ export default function Generator() {
                   </>
                 )}
 
-                {/* 액션 버튼 (모바일에서 한 줄/두 줄로 자동 줄바꿈) */}
+                {/* 액션 버튼 */}
                 <div className="flex flex-wrap items-center gap-2 pt-1">
                   <button
                     onClick={onGenerate}
@@ -724,7 +674,7 @@ export default function Generator() {
               </div>
             </div>
 
-            {/* 샘플 프롬프트 갤러리 */}
+            {/* 샘플 프롬프트 */}
             <div className="rounded-2xl border border-zinc-800 bg-zinc-950/70 backdrop-blur-sm p-3 sm:p-4">
               <div className="flex items-center justify-between mb-2 gap-2">
                 <div className="text-[11px] uppercase tracking-wide text-zinc-400">
@@ -801,11 +751,9 @@ export default function Generator() {
             </div>
           </section>
 
-          {/* 설정 패널 (타깃/단계/프리셋/퀵 액션)
-              - 모바일: 아래쪽 (order-2)
-              - 데스크톱: 왼쪽 (lg:order-1) */}
+          {/* 왼쪽 제어 패널 */}
           <aside className="order-2 lg:order-1 space-y-4">
-            {/* 타깃 선택 */}
+            {/* 타깃 */}
             <section className="rounded-2xl border border-zinc-800 bg-zinc-950/60 backdrop-blur-sm p-3 sm:p-4">
               <div className="text-[11px] uppercase tracking-wide text-zinc-400 mb-2">
                 타깃
@@ -832,7 +780,7 @@ export default function Generator() {
               </p>
             </section>
 
-            {/* 단계 탭 */}
+            {/* 단계 */}
             <section className="rounded-2xl border border-zinc-800 bg-zinc-950/60 backdrop-blur-sm p-3 sm:p-4">
               <div className="text-[11px] uppercase tracking-wide text-zinc-400 mb-2">
                 단계
@@ -878,7 +826,7 @@ export default function Generator() {
               </div>
               <p className="text-[11px] text-zinc-500 leading-5">
                 프리셋은 추천 조합일 뿐, 입력 문장은 형이 직접 쓰는 걸 기준으로
-                잡았어요.
+                잡았어.
               </p>
             </section>
 
@@ -905,7 +853,7 @@ export default function Generator() {
           </aside>
         </div>
 
-        {/* 하단: 접히는 히스토리 */}
+        {/* 히스토리 */}
         <section className="rounded-2xl border border-zinc-800 bg-zinc-950/70 backdrop-blur-sm">
           <button
             className="w-full px-3 sm:px-4 py-3 flex items-center justify-between text-left"
@@ -954,8 +902,7 @@ export default function Generator() {
                         <span className="text-xs text-zinc-400">{h.at}</span>
                         <span className="text-xs text-zinc-400">
                           {
-                            TARGETS.find((x) => x.id === h.target)
-                              ?.label
+                            TARGETS.find((x) => x.id === h.target)?.label
                           }
                         </span>
                       </div>
