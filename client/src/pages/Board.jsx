@@ -1137,24 +1137,35 @@ export default function Board() {
     };
   }
 
-  async function handleAdminLogin() {
+   async function handleAdminLogin() {
     const pw = window.prompt("관리자 비밀번호를 입력하세요.");
     if (!pw) return;
+
     try {
-      const data = await api("/api/admin/verify", {
+      // api() 래퍼 말고 직접 fetch 써서 상태코드 확인
+      const res = await fetch(`${API_BASE}/api/admin/verify`, {
         method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({ password: pw }),
       });
-      if (data.ok) {
-        setIsAdmin(true);
-        setAdminPassword(pw);
-        alert("관리자 모드가 활성화되었습니다.");
-      } else {
-        alert("비밀번호가 올바르지 않습니다.");
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok || !data.ok) {
+        // 401 같은 경우 여기로 들어옴
+        alert(data.message || "비밀번호가 올바르지 않습니다.");
+        return;
       }
+
+      // ✅ 성공
+      setIsAdmin(true);
+      setAdminPassword(pw);
+      alert("관리자 모드가 활성화되었습니다.");
     } catch (e) {
       console.error(e);
-      alert("서버 오류로 관리자 확인에 실패했습니다.");
+      alert("서버에 접속할 수 없습니다. (네트워크/서버 점검 필요)");
     }
   }
 

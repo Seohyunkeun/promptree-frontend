@@ -92,46 +92,77 @@ function getPostWithComments(id, cb) {
   });
 }
 
-// ==== 관리자 비밀번호 (간단 하드코딩) ====
-const ADMIN_PASSWORD = process.env.BOARD_ADMIN_PW || "promptree-admin";
+// ==== 관리자 비밀번호 ====
+// Render 대시보드에는 ADMIN_PASSWORD 로 넣어두고,
+// 예전 BOARD_ADMIN_PW 도 있으면 함께 지원.
+const RAW_ADMIN_PASSWORD =
+  process.env.ADMIN_PASSWORD || process.env.BOARD_ADMIN_PW || "promptree-admin";
+const ADMIN_PASSWORD = RAW_ADMIN_PASSWORD.trim();
 
 // 관리자 비밀번호 검증
 app.post("/api/admin/verify", (req, res) => {
-  const { password } = req.body || {};
-  if (password && password === ADMIN_PASSWORD) {
-    return res.json({ ok: true });
+  try {
+    const { password } = req.body || {};
+    const input = (password || "").trim();
+
+    console.log("[ADMIN_VERIFY] ENV exists:", !!ADMIN_PASSWORD);
+    console.log("[ADMIN_VERIFY] input length:", input.length);
+
+    if (!ADMIN_PASSWORD) {
+      return res.status(500).json({
+        ok: false,
+        message: "ADMIN_PASSWORD is not configured on the server.",
+      });
+    }
+
+    if (!input) {
+      return res.status(401).json({
+        ok: false,
+        message: "비밀번호를 입력해주세요.",
+      });
+    }
+
+    if (input === ADMIN_PASSWORD) {
+      return res.json({ ok: true });
+    }
+
+    return res.status(401).json({
+      ok: false,
+      message: "비밀번호가 올바르지 않습니다.",
+    });
+  } catch (err) {
+    console.error("[ADMIN_VERIFY] error:", err);
+    return res.status(500).json({
+      ok: false,
+      message: "서버 내부 오류로 관리자 확인에 실패했습니다.",
+    });
   }
-  return res.status(401).json({ ok: false, error: "INVALID_ADMIN_PASSWORD" });
 });
 
 // ==== 게시글 목록 ====
 app.get("/api/posts", (req, res) => {
-  db.all(
-    `SELECT * FROM posts ORDER BY createdAt DESC`,
-    [],
-    (err, rows) => {
-      if (err) return res.status(500).json({ error: "DB_ERROR" });
+  db.all(`SELECT * FROM posts ORDER BY createdAt DESC`, [], (err, rows) => {
+    if (err) return res.status(500).json({ error: "DB_ERROR" });
 
-      const parseJson = (str, fallback) => {
-        if (!str) return fallback;
-        try {
-          return JSON.parse(str);
-        } catch {
-          return fallback;
-        }
-      };
+    const parseJson = (str, fallback) => {
+      if (!str) return fallback;
+      try {
+        return JSON.parse(str);
+      } catch {
+        return fallback;
+      }
+    };
 
-      const posts = rows.map((p) => ({
-        ...p,
-        images: parseJson(p.images, []),
-        videos: parseJson(p.videos, []),
-        likedBy: parseJson(p.likedBy, []),
-        pinned: !!p.pinned,
-      }));
+    const posts = rows.map((p) => ({
+      ...p,
+      images: parseJson(p.images, []),
+      videos: parseJson(p.videos, []),
+      likedBy: parseJson(p.likedBy, []),
+      pinned: !!p.pinned,
+    }));
 
-      res.json(posts);
-    }
-  );
+    res.json(posts);
+  });
 });
 
 // ==== 게시글 생성 ====
@@ -152,7 +183,7 @@ app.post("/api/posts", (req, res) => {
   }
 
   // 공지면 관리자만
-  if (category === "공지" && adminPassword !== ADMIN_PASSWORD) {
+  if (category === "공지" && (adminPassword || "").trim() !== ADMIN_PASSWORD) {
     return res.status(403).json({ error: "ADMIN_REQUIRED" });
   }
 
@@ -193,7 +224,7 @@ app.post("/api/posts", (req, res) => {
   );
 });
 
-// ==== 단일 게시글 조회 (필요할 수도 있어서) ====
+// ==== 단일 게시글 조회 ====
 app.get("/api/posts/:id", (req, res) => {
   const { id } = req.params;
   getPostWithComments(id, (err, post) => {
@@ -203,7 +234,7 @@ app.get("/api/posts/:id", (req, res) => {
   });
 });
 
-// ==== 조회수 +1 (브라우저에서 한 번만 호출) ====
+// ==== 조회수 +1 ====
 app.post("/api/posts/:id/view", (req, res) => {
   const { id } = req.params;
 
@@ -271,7 +302,7 @@ app.post("/api/posts/:id/pin", (req, res) => {
   const { id } = req.params;
   const { adminPassword } = req.body || {};
 
-  if (adminPassword !== ADMIN_PASSWORD) {
+  if ((adminPassword || "").trim() !== ADMIN_PASSWORD) {
     return res.status(403).json({ error: "ADMIN_REQUIRED" });
   }
 
@@ -304,7 +335,9 @@ app.delete("/api/posts/:id", (req, res) => {
     if (err) return res.status(500).json({ error: "DB_ERROR" });
     if (!row) return res.status(404).json({ error: "NOT_FOUND" });
 
-    const isAdmin = adminPassword && adminPassword === ADMIN_PASSWORD;
+    const isAdmin =
+      (adminPassword || "").trim() &&
+      (adminPassword || "").trim() === ADMIN_PASSWORD;
     const canDelete =
       isAdmin || (row.pwHash && pwHash && row.pwHash === pwHash);
 
