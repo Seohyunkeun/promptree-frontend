@@ -105,8 +105,11 @@ app.post("/api/admin/verify", (req, res) => {
     const { password } = req.body || {};
     const input = (password || "").trim();
 
-    console.log("[ADMIN_VERIFY] ENV exists:", !!ADMIN_PASSWORD);
-    console.log("[ADMIN_VERIFY] input length:", input.length);
+    // 🔥 디버그 로그
+    console.log("=== ADMIN VERIFY DEBUG ===");
+    console.log("ENV ADMIN_PASSWORD =", JSON.stringify(ADMIN_PASSWORD));
+    console.log("INPUT PASSWORD    =", JSON.stringify(input));
+    console.log("==========================");
 
     if (!ADMIN_PASSWORD) {
       return res.status(500).json({
@@ -138,6 +141,7 @@ app.post("/api/admin/verify", (req, res) => {
     });
   }
 });
+
 
 // ==== 게시글 목록 ====
 app.get("/api/posts", (req, res) => {
