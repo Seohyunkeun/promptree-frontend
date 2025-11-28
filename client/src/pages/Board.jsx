@@ -385,7 +385,7 @@ function ListTable({ posts, page, pageSize }) {
               <th className="w-32 font-medium">글쓴이</th>
               <th className="w-32 font-medium">작성일</th>
               <th className="w-20 font-medium">조회</th>
-              <th className="w-20 font_medium">추천</th>
+              <th className="w-20 font-medium">추천</th>
             </tr>
           </thead>
           <tbody className="text-zinc-200">
@@ -912,72 +912,82 @@ function BoardListPage({
   return (
     <div className="bg-[#06060A] min-h-[calc(100vh-64px)] text-gray-200">
       <div className="max-w-5xl mx-auto px-4 py-6">
-        {/* 상단 바 */}
+        {/* 상단 바 (모바일 최적화) */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <select
-              value="title+content"
-              readOnly
-              className="px-2 py-1.5 rounded-xl border border-[#2A2A33] bg-[#101018] text-xs text-zinc-300"
-            >
-              <option value="title+content">제목+내용</option>
-            </select>
-            <input
-              value={query}
-              onChange={(e) => {
-                setQuery(e.target.value);
-                setPage(1);
-              }}
-              placeholder="검색어를 입력하세요"
-              className="px-3 py-1.5 rounded-xl border border-[#2A2A33] bg-[#101018] text-sm text-zinc-100 w-64 placeholder:text-zinc-500"
-            />
-            <button
-              onClick={() => setPage(1)}
-              className="px-3 py-1.5 rounded-xl border border-[#2A2A33] bg-[#101018] text-sm text-zinc-200 hover:bg-zinc-900"
-            >
-              검색
-            </button>
-            <button
-              onClick={loadPosts}
-              className="px-3 py-1.5 rounded-xl border border-[#2A2A33] bg-[#101018] text-xs text-zinc-300 hover:bg-zinc-900"
-            >
-              새로고침
-            </button>
+          {/* 왼쪽: 검색 영역 */}
+          <div className="flex flex-col gap-2 w-full sm:w-auto">
+            <div className="flex items-center gap-2">
+              <select
+                value="title+content"
+                readOnly
+                className="h-9 px-2 rounded-xl border border-[#2A2A33] bg-[#101018] text-xs text-zinc-300"
+              >
+                <option value="title+content">제목+내용</option>
+              </select>
+              <input
+                value={query}
+                onChange={(e) => {
+                  setQuery(e.target.value);
+                  setPage(1);
+                }}
+                placeholder="검색어를 입력하세요"
+                className="h-9 flex-1 min-w-0 px-3 rounded-xl border border-[#2A2A33] bg-[#101018] text-sm text-zinc-100 placeholder:text-zinc-500"
+              />
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setPage(1)}
+                className="flex-1 sm:flex-none h-9 px-3 rounded-xl border border-[#2A2A33] bg-[#101018] text-sm text-zinc-200 hover:bg-zinc-900"
+              >
+                검색
+              </button>
+              <button
+                onClick={loadPosts}
+                className="flex-1 sm:flex-none h-9 px-3 rounded-xl border border-[#2A2A33] bg-[#101018] text-xs text-zinc-300 hover:bg-zinc-900"
+              >
+                새로고침
+              </button>
+            </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <label className="text-xs flex items-center gap-1 text-zinc-300">
-              <input
-                type="checkbox"
-                checked={onlyPinned}
-                onChange={(e) => setOnlyPinned(e.target.checked)}
-                className="accent-zinc-200"
-              />
-              고정만
-            </label>
-            <select
-              value={sortKey}
-              onChange={(e) => setSortKey(e.target.value)}
-              className="px-2 py-1.5 rounded-xl border border-[#2A2A33] bg-[#101018] text-xs text-zinc-300"
-            >
-              <option value="updated">최신순</option>
-              <option value="likes">추천순</option>
-            </select>
-            <button
-              onClick={() => setShowEditor(true)}
-              className="h-9 px-4 rounded-xl bg-white text-sm font-medium text-black hover:bg-zinc-200"
-            >
-              글쓰기
-            </button>
+          {/* 오른쪽: 필터 + 글쓰기 + 관리자 */}
+          <div className="flex flex-col gap-2 w-full sm:w-auto sm:items-end">
+            <div className="flex items-center gap-2">
+              <label className="text-xs flex items-center gap-1 text-zinc-300">
+                <input
+                  type="checkbox"
+                  checked={onlyPinned}
+                  onChange={(e) => setOnlyPinned(e.target.checked)}
+                  className="accent-zinc-200"
+                />
+                고정만
+              </label>
+              <select
+                value={sortKey}
+                onChange={(e) => setSortKey(e.target.value)}
+                className="h-9 px-2 rounded-xl border border-[#2A2A33] bg-[#101018] text-xs text-zinc-300"
+              >
+                <option value="updated">최신순</option>
+                <option value="likes">추천순</option>
+              </select>
+            </div>
+            <div className="flex gap-2 w-full sm:w-auto">
+              <button
+                onClick={() => setShowEditor(true)}
+                className="flex-1 sm:flex-none h-9 px-4 rounded-xl bg-white text-sm font-medium text-black hover:bg-zinc-200"
+              >
+                글쓰기
+              </button>
 
-            {/* 관리자 로그인/해제 */}
-            <button
-              type="button"
-              onClick={isAdmin ? onAdminLogout : onAdminLogin}
-              className="px-2 py-1.5 rounded-xl border border-[#2A2A33] bg-[#101018] text-[11px] text-zinc-400 hover:bg-zinc-900"
-            >
-              {isAdmin ? "관리자 해제" : "관리자 로그인"}
-            </button>
+              {/* 관리자 로그인/해제 */}
+              <button
+                type="button"
+                onClick={isAdmin ? onAdminLogout : onAdminLogin}
+                className="h-9 px-3 rounded-xl border border-[#2A2A33] bg-[#101018] text-[11px] text-zinc-400 hover:bg-zinc-900"
+              >
+                {isAdmin ? "관리자 해제" : "관리자 로그인"}
+              </button>
+            </div>
           </div>
         </div>
 
