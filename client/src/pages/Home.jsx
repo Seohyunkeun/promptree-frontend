@@ -1,17 +1,13 @@
 // client/src/pages/Home.jsx
 import { Link, useNavigate } from "react-router-dom";
 
-/**
- * 모델 카드: 상단 오른쪽 타깃 선택 카드
- * 이미지들은 우리가 만든 샘플 이미지로 교체
- */
 const MODEL_CARDS = [
   {
     id: "gemini",
     tag: "IMAGE",
     title: "Gemini 2.5 Flash Image",
     desc: "정적 이미지 · 묘사 중심",
-    img: "/samples/sample-cyber-girl.webp", // 사이버펑크 소녀
+    img: "/samples/card-gemini.webp",
     target: "gemini",
     stage: "시네마틱",
     preset: "사진(일몰)",
@@ -21,7 +17,7 @@ const MODEL_CARDS = [
     tag: "VIDEO",
     title: "Veo 3.1",
     desc: "비디오 · 샷 플랜/카메라 동선",
-    img: "/samples/sample-pixel-truck.webp", // 픽셀 트럭 캠핑
+    img: "/samples/card-veo.webp",
     target: "veo",
     stage: "시네마틱",
     preset: "사진(일몰)",
@@ -31,7 +27,7 @@ const MODEL_CARDS = [
     tag: "IMAGE",
     title: "Midjourney (V7)",
     desc: "/imagine · 스타일 시트",
-    img: "/samples/sample-bart-rapper.webp", // 바트 래퍼
+    img: "/samples/card-mj.webp",
     target: "mj",
     stage: "프라임",
     preset: "사진(정장)",
@@ -41,65 +37,38 @@ const MODEL_CARDS = [
     tag: "VIDEO",
     title: "OpenAI Sora 2",
     desc: "8초 시네마틱 클립",
-    img: "/samples/sample-creator-desk.webp", // 작업하는 디자이너
+    img: "/samples/card-sora.webp",
     target: "sora",
     stage: "시네마틱",
     preset: "사진(일몰)",
   },
 ];
 
-/**
- * 하단 샘플 프롬프트 카드
- * → 형이 만든 이미지들을 한 번에 보여주는 영역
- */
+// 메인 하단 샘플 (이미지는 형이 쓰고 있는 카드 이미지 재활용)
 const SAMPLE_CARDS = [
   {
-    id: "sample-cyber-girl",
-    title: "사이버펑크 네온 골목 인물샷",
+    id: "sample-gemini-neon",
+    title: "네온 골목 인물샷 (이미지)",
     target: "gemini",
-    sampleId: "gemini-cyber-girl",
-    img: "/samples/sample-cyber-girl.webp",
-    desc: "비 오는 네온 거리에서 검을 든 사이버펑크 캐릭터, 시네마틱 인물샷.",
+    sampleId: "gemini-neon-city",
+    img: "/samples/card-gemini.webp",
+    desc: "비 오는 네온 골목, 시네마틱 인물샷",
   },
   {
-    id: "sample-pixel-truck",
-    title: "트럭 생존 베이스 캠프 (픽셀 아트)",
+    id: "sample-veo-clinic",
+    title: "미래형 감정 클리닉 (영상)",
     target: "veo",
-    sampleId: "veo-pixel-truck-camp",
-    img: "/samples/sample-pixel-truck.webp",
-    desc: "숲 속 거대한 트럭 베이스에서 캠핑하는 픽셀 파티, 릴스용 시리즈 컨셉.",
+    sampleId: "veo-emotion-clinic",
+    img: "/samples/card-veo.webp",
+    desc: "감정을 업로드하는 SF 클리닉 샷 플랜",
   },
   {
-    id: "sample-creator-desk",
-    title: "야간 작업실의 크리에이터",
-    target: "gemini",
-    sampleId: "gemini-creator-desk",
-    img: "/samples/sample-creator-desk.webp",
-    desc: "듀얼 모니터와 피규어가 있는 작업실, 현실감 있는 라이프스타일 샷.",
-  },
-  {
-    id: "sample-bart-rapper",
-    title: "스트릿 래퍼 스타일 캐릭터",
+    id: "sample-mj-fashion",
+    title: "옥상 패션 룩북 (이미지)",
     target: "mj",
-    sampleId: "mj-bart-rapper",
-    img: "/samples/sample-bart-rapper.webp",
-    desc: "굵은 골드 체인과 스니커즈를 착용한 만화 캐릭터 스트릿 스타일.",
-  },
-  {
-    id: "sample-shinchan-yakuza",
-    title: "이레즈미 야쿠자 패밀리",
-    target: "veo",
-    sampleId: "veo-shinchan-yakuza",
-    img: "/samples/sample-shinchan-yakuza.webp",
-    desc: "이레즈미 문신과 야쿠자 무드의 캐릭터 그룹 샷, 애니 오프닝 느낌.",
-  },
-  {
-    id: "sample-sponge-gang",
-    title: "갱스터 듀오 캐릭터 샷",
-    target: "mj",
-    sampleId: "mj-sponge-gang",
-    img: "/samples/sample-sponge-gang.webp",
-    desc: "도심 배경의 갱스터 듀오, 과장된 액세서리와 색감이 포인트.",
+    sampleId: "mj-fashion-lookbook",
+    img: "/samples/card-mj.webp",
+    desc: "골든 아워 룩북 스타일",
   },
 ];
 
@@ -118,7 +87,7 @@ export default function Home() {
   return (
     <div className="bg-[#06060A] min-h-[calc(100vh-64px)] text-zinc-50">
       <main className="max-w-6xl mx-auto px-4 py-8 md:py-10 space-y-10">
-        {/* 상단: 히어로 텍스트 + 타깃 카드 */}
+        {/* 상단: 히어로 + 타깃 카드 */}
         <section className="grid gap-8 lg:grid-cols-[minmax(0,1.4fr),minmax(0,1.1fr)] items-start">
           {/* 왼쪽: 히어로 텍스트 */}
           <div className="space-y-5">
@@ -258,8 +227,7 @@ export default function Home() {
             <div>
               <h2 className="text-sm font-semibold">샘플 프롬프트 미리 보기</h2>
               <p className="text-xs text-zinc-500">
-                형이 만든 이미지·영상 샘플을 클릭해서, 실제 프롬프트 구조를 바로
-                확인할 수 있어.
+                마음에 드는 걸 골라서 바로 생성기에서 수정·재사용 가능
               </p>
             </div>
             <span className="text-[11px] text-zinc-500 hidden sm:inline">
