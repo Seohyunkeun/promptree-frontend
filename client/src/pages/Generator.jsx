@@ -3,7 +3,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 
 /* ─────────────────────────────────────────────
-   Promptree 생성기 (모바일 우선 + 가로스크롤 차단)
+   Promptree 생성기
+   - 모바일: [설정 패널] → [입력/결과 카드] → [샘플] → [히스토리]
+   - 데스크톱: 좌측 패널 / 우측 메인 2컬럼
+   - 전체 가로 스크롤 차단
 ────────────────────────────────────────────── */
 
 const LS_HISTORY = "pt_gen_history_v4";
@@ -453,7 +456,7 @@ export default function Generator() {
             className="mt-2 sm:mt-0 self-start sm:self-auto h-9 px-3 rounded-xl border border-zinc-800 bg-zinc-900/70 hover:bg-zinc-800 text-xs"
             onClick={() =>
               alert(
-                "사용 가이드\n\n1) [입력] 탭에서 장면과 참고 이미지를 적고\n2) 아래 버튼에서 [프롬프트 생성]을 누르세요.\n\n[결과] 탭에서 타깃별 포맷에 맞춘 프롬프트를 확인하고 복사하거나 게시글로 보낼 수 있습니다."
+                "사용 가이드\n\n1) 위에서 타깃·단계·프리셋을 고르고\n2) [입력] 탭에서 장면과 참고 이미지를 적은 뒤\n3) [프롬프트 생성] 버튼을 누르세요.\n\n[결과] 탭에서 프롬프트를 복사하거나 게시글로 보낼 수 있습니다."
               )
             }
           >
@@ -461,10 +464,112 @@ export default function Generator() {
           </button>
         </header>
 
-        {/* 메인 레이아웃 (모바일 1열, lg부터 2열) */}
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,260px),minmax(0,1fr)]">
-          {/* 메인 카드 (입력/결과) */}
-          <section className="order-1 lg:order-2 space-y-4">
+        {/* 메인: lg부터만 2컬럼 */}
+        <div className="space-y-4 lg:space-y-0 lg:grid lg:grid-cols-[minmax(0,260px),minmax(0,1fr)] lg:gap-4">
+          {/* 모바일에서 제일 위: 설정 패널 */}
+          <aside className="space-y-4">
+            {/* 타깃 */}
+            <section className="rounded-2xl border border-zinc-800 bg-zinc-950/60 backdrop-blur-sm p-3 sm:p-4">
+              <div className="text-[11px] uppercase tracking-wide text-zinc-400 mb-2">
+                타깃
+              </div>
+              <div className="flex flex-wrap gap-2 mb-2">
+                {TARGETS.map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={() => setTarget(t.id)}
+                    className={`h-8 px-3 rounded-full border text-[11px] sm:text-[13px] transition
+                      ${
+                        target === t.id
+                          ? "border-zinc-100 bg-white text-black shadow-sm"
+                          : "border-zinc-800 bg-zinc-900/80 hover:bg-zinc-800 text-zinc-200"
+                      }`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+              <p className="text-[11px] text-zinc-500">
+                {currentTargetMeta.subtitle ||
+                  "타깃에 따라 프롬프트 포맷이 자동으로 바뀝니다."}
+              </p>
+            </section>
+
+            {/* 단계 */}
+            <section className="rounded-2xl border border-zinc-800 bg-zinc-950/60 backdrop-blur-sm p-3 sm:p-4">
+              <div className="text-[11px] uppercase tracking-wide text-zinc-400 mb-2">
+                단계
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {["라이팅", "클래식", "프라임", "시네마틱"].map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => setStage(s)}
+                    className={`h-8 px-3 rounded-full border text-[11px] sm:text-[13px]
+                      ${
+                        stage === s
+                          ? "border-zinc-100 bg-white text-black"
+                          : "border-zinc-800 bg-zinc-900/80 hover:bg-zinc-800 text-zinc-200"
+                      }`}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            {/* 프리셋 */}
+            <section className="rounded-2xl border border-zinc-800 bg-zinc-950/60 backdrop-blur-sm p-3 sm:p-4">
+              <div className="text-[11px] uppercase tracking-wide text-zinc-400 mb-2">
+                프리셋
+              </div>
+              <div className="flex flex-wrap gap-2 mb-3">
+                {["사진(일몰)", "사진(정장)", "제품"].map((p) => (
+                  <button
+                    key={p}
+                    onClick={() => applyPreset(p)}
+                    className={`h-8 px-3 rounded-full border text-[11px] sm:text-[13px]
+                      ${
+                        preset === p
+                          ? "border-zinc-100 bg-white text-black"
+                          : "border-zinc-800 bg-zinc-900/80 hover:bg-zinc-800 text-zinc-200"
+                      }`}
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
+              <p className="text-[11px] text-zinc-500 leading-5">
+                프리셋은 추천 조합이고, 실제 문장은 형이 직접 쓰는 걸 기준으로
+                잡았어.
+              </p>
+            </section>
+
+            {/* 퀵 액션 */}
+            <section className="rounded-2xl border border-zinc-800 bg-zinc-950/60 backdrop-blur-sm p-3 sm:p-4">
+              <div className="text-[11px] uppercase tracking-wide text-zinc-400 mb-2">
+                퀵 액션
+              </div>
+              <div className="flex flex-col gap-2">
+                <button
+                  onClick={clearInput}
+                  className="h-8 px-3 rounded-lg border border-zinc-800 bg-zinc-900/80 hover:bg-zinc-800 text-[11px] sm:text-xs text-zinc-200 text-left"
+                >
+                  입력 초기화
+                </button>
+                <button
+                  onClick={clearTags}
+                  className="h-8 px-3 rounded-lg border border-zinc-800 bg-zinc-900/80 hover:bg-zinc-800 text-[11px] sm:text-xs text-zinc-200 text-left"
+                >
+                  태그 모두 해제
+                </button>
+              </div>
+            </section>
+          </aside>
+
+          {/* 오른쪽: 입력/결과 + 샘플 */}
+          <section className="space-y-4">
+            {/* 입력/결과 카드 */}
             <div className="rounded-2xl border border-zinc-800 bg-zinc-950/70 backdrop-blur-sm overflow-hidden">
               {/* 탭 헤더 */}
               <div className="px-3 sm:px-4 pt-3 border-b border-zinc-800/80">
@@ -511,7 +616,7 @@ export default function Generator() {
                 </div>
               </div>
 
-              {/* 탭 본문 */}
+              {/* 탭 내용 */}
               <div className="p-3 sm:p-4 space-y-4">
                 {activeTab === "input" ? (
                   <>
@@ -523,7 +628,7 @@ export default function Generator() {
                         </h2>
                         <span className="text-[10px] sm:text-[11px] text-zinc-500 text-left sm:text-right">
                           업로드하면 프롬프트에 &quot;참고 이미지 기반&quot;
-                          안내가 자동으로 들어갑니다.
+                          문장이 자동으로 들어갑니다.
                         </span>
                       </div>
                       <label className="flex items-center justify-between gap-3 rounded-xl border border-dashed border-zinc-700 bg-zinc-950/60 px-3 py-2 text-xs text-zinc-400 hover:border-zinc-500 hover:bg-zinc-900/60 cursor-pointer">
@@ -667,8 +772,8 @@ export default function Generator() {
                     이 프롬프트로 게시글 쓰기
                   </button>
                   <span className="w-full text-[10px] sm:text-xs text-zinc-500">
-                    생성 후 결과 탭에서 프롬프트를 확인·복사하거나 게시판으로
-                    보낼 수 있어요.
+                    결과 탭에서 프롬프트를 확인·복사하거나 게시판으로 보낼 수
+                    있어요.
                   </span>
                 </div>
               </div>
@@ -750,107 +855,6 @@ export default function Generator() {
               </div>
             </div>
           </section>
-
-          {/* 왼쪽 제어 패널 */}
-          <aside className="order-2 lg:order-1 space-y-4">
-            {/* 타깃 */}
-            <section className="rounded-2xl border border-zinc-800 bg-zinc-950/60 backdrop-blur-sm p-3 sm:p-4">
-              <div className="text-[11px] uppercase tracking-wide text-zinc-400 mb-2">
-                타깃
-              </div>
-              <div className="flex flex-wrap gap-2 mb-2">
-                {TARGETS.map((t) => (
-                  <button
-                    key={t.id}
-                    onClick={() => setTarget(t.id)}
-                    className={`h-8 px-3 rounded-full border text-[11px] sm:text-[13px] transition
-                      ${
-                        target === t.id
-                          ? "border-zinc-100 bg-white text-black shadow-sm"
-                          : "border-zinc-800 bg-zinc-900/80 hover:bg-zinc-800 text-zinc-200"
-                      }`}
-                  >
-                    {t.label}
-                  </button>
-                ))}
-              </div>
-              <p className="text-[11px] text-zinc-500">
-                {currentTargetMeta.subtitle ||
-                  "타깃에 따라 프롬프트 포맷이 자동으로 바뀝니다."}
-              </p>
-            </section>
-
-            {/* 단계 */}
-            <section className="rounded-2xl border border-zinc-800 bg-zinc-950/60 backdrop-blur-sm p-3 sm:p-4">
-              <div className="text-[11px] uppercase tracking-wide text-zinc-400 mb-2">
-                단계
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {["라이팅", "클래식", "프라임", "시네마틱"].map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => setStage(s)}
-                    className={`h-8 px-3 rounded-full border text-[11px] sm:text-[13px]
-                      ${
-                        stage === s
-                          ? "border-zinc-100 bg-white text-black"
-                          : "border-zinc-800 bg-zinc-900/80 hover:bg-zinc-800 text-zinc-200"
-                      }`}
-                  >
-                    {s}
-                  </button>
-                ))}
-              </div>
-            </section>
-
-            {/* 프리셋 */}
-            <section className="rounded-2xl border border-zinc-800 bg-zinc-950/60 backdrop-blur-sm p-3 sm:p-4">
-              <div className="text-[11px] uppercase tracking-wide text-zinc-400 mb-2">
-                프리셋
-              </div>
-              <div className="flex flex-wrap gap-2 mb-3">
-                {["사진(일몰)", "사진(정장)", "제품"].map((p) => (
-                  <button
-                    key={p}
-                    onClick={() => applyPreset(p)}
-                    className={`h-8 px-3 rounded-full border text-[11px] sm:text-[13px]
-                      ${
-                        preset === p
-                          ? "border-zinc-100 bg-white text-black"
-                          : "border-zinc-800 bg-zinc-900/80 hover:bg-zinc-800 text-zinc-200"
-                      }`}
-                  >
-                    {p}
-                  </button>
-                ))}
-              </div>
-              <p className="text-[11px] text-zinc-500 leading-5">
-                프리셋은 추천 조합일 뿐, 입력 문장은 형이 직접 쓰는 걸 기준으로
-                잡았어.
-              </p>
-            </section>
-
-            {/* 퀵 액션 */}
-            <section className="rounded-2xl border border-zinc-800 bg-zinc-950/60 backdrop-blur-sm p-3 sm:p-4">
-              <div className="text-[11px] uppercase tracking-wide text-zinc-400 mb-2">
-                퀵 액션
-              </div>
-              <div className="flex flex-col gap-2">
-                <button
-                  onClick={clearInput}
-                  className="h-8 px-3 rounded-lg border border-zinc-800 bg-zinc-900/80 hover:bg-zinc-800 text-[11px] sm:text-xs text-zinc-200 text-left"
-                >
-                  입력 초기화
-                </button>
-                <button
-                  onClick={clearTags}
-                  className="h-8 px-3 rounded-lg border border-zinc-800 bg-zinc-900/80 hover:bg-zinc-800 text-[11px] sm:text-xs text-zinc-200 text-left"
-                >
-                  태그 모두 해제
-                </button>
-              </div>
-            </section>
-          </aside>
         </div>
 
         {/* 히스토리 */}
