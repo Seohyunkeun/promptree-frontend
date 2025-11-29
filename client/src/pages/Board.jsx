@@ -311,23 +311,24 @@ function CommentForm({ onAdd }) {
 
   return (
     <div className="grid gap-2">
-      <div className="flex flex-col gap-2 sm:flex-row">
+      {/* ✅ 모바일에서도 한 줄: 닉네임 / 비번 / 등록 버튼 */}
+      <div className="flex gap-2">
         <input
           value={author}
           onChange={(e) => setAuthor(e.target.value)}
           placeholder="닉네임(선택)"
-          className="px-3 py-2 rounded-xl border border-zinc-700 bg-[#111117] text-[13px] text-zinc-100 placeholder:text-zinc-500"
+          className="flex-1 min-w-0 px-3 py-2 rounded-xl border border-zinc-700 bg-[#111117] text-[13px] text-zinc-100 placeholder:text-zinc-500"
         />
         <input
           value={pw}
           onChange={(e) => setPw(e.target.value)}
           placeholder="비밀번호(선택)"
           type="password"
-          className="px-3 py-2 rounded-xl border border-zinc-700 bg-[#111117] text-[13px] text-zinc-100 placeholder:text-zinc-500"
+          className="flex-1 min-w-0 px-3 py-2 rounded-xl border border-zinc-700 bg-[#111117] text-[13px] text-zinc-100 placeholder:text-zinc-500"
         />
         <button
           onClick={handleSubmit}
-          className="px-3 py-2 rounded-xl border border-zinc-700 bg-white text-[13px] text-black hover:bg-zinc-200"
+          className="px-3 py-2 whitespace-nowrap rounded-xl border border-zinc-700 bg-white text-[13px] text-black hover:bg-zinc-200"
         >
           등록
         </button>
@@ -725,17 +726,38 @@ function DetailView({ isAdmin, adminPassword }) {
     }
   }
 
+  // ✅ 댓글 삭제 시 비밀번호 입력해서 서버로 전달
   async function handleDeleteComment(cid) {
     if (!post) return;
     if (!window.confirm("댓글을 삭제하시겠습니까?")) return;
+
+    let body = {};
+
+    // 관리자면 관리자 비밀번호로 삭제 가능
+    if (isAdmin && adminPassword) {
+      body = { adminPassword };
+    } else {
+      const pw = window.prompt("댓글 비밀번호를 입력하세요.");
+      if (!pw || !pw.trim()) {
+        alert("비밀번호를 입력해야 삭제할 수 있습니다.");
+        return;
+      }
+      body = { pwHash: pw.trim() };
+    }
+
     try {
       const data = await api(`/api/posts/${post.id}/comments/${cid}`, {
         method: "DELETE",
+        body: JSON.stringify(body),
       });
       setPost(data.post);
     } catch (e) {
       console.error(e);
-      alert("댓글 삭제 중 오류가 발생했습니다.");
+      if (e.message === "INVALID_PASSWORD") {
+        alert("비밀번호가 올바르지 않아 댓글을 삭제할 수 없습니다.");
+      } else {
+        alert("댓글 삭제 중 오류가 발생했습니다.");
+      }
     }
   }
 
