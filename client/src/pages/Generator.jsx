@@ -38,7 +38,7 @@ const TARGET_META = {
   sora: {
     subtitle: "클립 블루프린트 · 8초 무드 영상",
     placeholder:
-      "예) 석양 지는 도시를 배경으로 한 인물이 카메라 쪽으로 천천히 걸어오는 장면",
+      "예) 석양 지는 도시를 배경으로 한 인물이 카메라를 향해 천천히 걸어오는 장면",
   },
 };
 
@@ -298,12 +298,6 @@ export default function Generator() {
     const styleTagsText =
       tagsArg && tagsArg.length ? tagsArg.join(", ") : "";
 
-    const extraPieces = [];
-    if (presetDesc) extraPieces.push(presetDesc);
-    if (stageDesc) extraPieces.push(stageDesc);
-    if (styleTagsText) extraPieces.push(styleTagsText);
-    const extras = extraPieces.length ? `, ${extraPieces.join(", ")}` : "";
-
     const referenceBlock = (() => {
       const hasNote = !!(refNoteArg && refNoteArg.trim());
       if (!refImagePresent && !hasNote) return "";
@@ -358,13 +352,29 @@ export default function Generator() {
         ideaEn ||
         "cinematic portrait of a character standing in a neon city alley at night, rain on the ground and reflections of signs on wet pavement";
 
-      const sceneLine = `${base}${extras}`;
+      // SCENE: 아이디어만
+      const sceneLine = base;
+
+      // LIGHT: 프리셋 + 단계 묶어서
+      const lightPieces = [];
+      if (presetDesc) lightPieces.push(presetDesc);
+      if (stageDesc) lightPieces.push(stageDesc);
+
+      const lightLine = lightPieces.length
+        ? lightPieces.join(", ")
+        : "soft directional key light, gentle shadows, clean highlights";
+
+      // STYLE: 기본 퀄리티 + 태그
+      let styleLine =
+        "highly detailed, photorealistic, 8k resolution, ultra sharp focus, rich micro-texture, realistic skin and materials, subtle film grain, natural color balance";
+
+      if (styleTagsText) {
+        styleLine += `, ${styleTagsText}`;
+      }
 
       const sceneBlock = `SCENE:\n${sceneLine}`;
-      const lightBlock =
-        "LIGHT:\nsoft directional key light, gentle shadows, clean highlights";
-      const styleBlock =
-        "STYLE:\nhighly detailed, photorealistic, 8k resolution, ultra sharp focus, rich micro-texture, realistic skin and materials, subtle film grain, natural color balance";
+      const lightBlock = `LIGHT:\n${lightLine}`;
+      const styleBlock = `STYLE:\n${styleLine}`;
       const negativeBlock =
         "NEGATIVE:\nwatermark, logo, text, UI, overexposed highlights, blown-out whites, deformed hands, extra fingers, distorted face, low resolution, compression artifacts";
 
@@ -381,10 +391,17 @@ export default function Generator() {
         ideaEn ||
         "camera slowly glides through a neon city alley after rain, following a single character walking away from the camera";
 
-      const scene = `${base}${extras}`;
+      const veoExtras = [];
+      if (presetDesc) veoExtras.push(presetDesc);
+      if (stageDesc) veoExtras.push(stageDesc);
+      if (styleTagsText) veoExtras.push(styleTagsText);
+
+      const extrasText = veoExtras.length ? `, ${veoExtras.join(", ")}` : "";
+      const scene = `${base}${extrasText}`;
 
       const main = [
-        `High-end cinematic video, about 8–12 seconds at 24fps. Scene: ${scene}.`,
+        `High-end cinematic video, about 8–12 seconds at 24fps.`,
+        `Scene: ${scene}.`,
         "",
         "SHOT PLAN:",
         "Shot 01 (2–3s) – Wide establishing shot: show the full environment, city details and overall mood, slow dolly-in or crane movement.",
@@ -407,7 +424,14 @@ export default function Generator() {
       const content =
         ideaEn ||
         "cinematic portrait of a stylish character standing in a neon city alley at night, detailed environment, rich lighting";
-      const scene = `${content}${extras}`;
+
+      const mjExtras = [];
+      if (presetDesc) mjExtras.push(presetDesc);
+      if (stageDesc) mjExtras.push(stageDesc);
+      if (styleTagsText) mjExtras.push(styleTagsText);
+
+      const extrasText = mjExtras.length ? `, ${mjExtras.join(", ")}` : "";
+      const scene = `${content}${extrasText}`;
 
       const ar = getMidjourneyAspectRatio(presetArg);
       const stylize = getMidjourneyStylize(stageArg);
@@ -422,10 +446,17 @@ export default function Generator() {
       ideaEn ||
       "dusk city street, one person walking slowly toward the camera, traffic lights glowing in the background";
 
-    const scene = `${base}${extras}`;
+    const soraExtras = [];
+    if (presetDesc) soraExtras.push(presetDesc);
+    if (stageDesc) soraExtras.push(stageDesc);
+    if (styleTagsText) soraExtras.push(styleTagsText);
+
+    const extrasText = soraExtras.length ? `, ${soraExtras.join(", ")}` : "";
+    const scene = `${base}${extrasText}`;
 
     const main = [
-      `8 second cinematic video at 24fps. Scene: ${scene}.`,
+      `8 second cinematic video at 24fps.`,
+      `Scene: ${scene}.`,
       "",
       "CAMERA & MOTION:",
       "Gentle handheld feel with subtle micro-movement, slow forward move toward the subject.",
@@ -717,7 +748,7 @@ export default function Generator() {
                       </span>
                     )}
                   </div>
-                  <div className="text-[10px] sm:text-[11px] text-zinc-500 text-right shrink-0">
+                <div className="text-[10px] sm:text-[11px] text-zinc-500 text-right shrink-0">
                     <div>입력 글자수: {charCount}</div>
                     <div>입력 토큰: {inputTokenEstimate}</div>
                     <div>결과 토큰: {outputTokenCount}</div>
