@@ -9,6 +9,8 @@ import { useSearchParams, useNavigate } from "react-router-dom";
    - 전체 가로 스크롤 차단
 ────────────────────────────────────────────── */
 
+const API_BASE = import.meta.env.VITE_API_BASE || "";
+
 const LS_HISTORY = "pt_gen_history_v4";
 const MAX_HISTORY = 30;
 
@@ -132,73 +134,52 @@ const prettyDate = (d = new Date()) =>
 const estimateTokens = (t = "") => Math.ceil((t || "").length / 4);
 
 /* ─────────────────────────────
-   단계/프리셋 → 스타일 텍스트
-   (너무 강한 한 장면 고정이 아니라 "힌트"만 주는 정도로 조정)
+   한국어 → 영어 아이디어 변환 훅 자리
+   (지금은 trim만, 진짜 번역은 서버에서 처리)
 ────────────────────────────────────────────── */
-
-function getStageDescription(stageArg) {
-  switch (stageArg) {
-    case "라이팅":
-      return "soft but directional studio lighting, gentle shadows, clean highlights";
-    case "클래식":
-      return "timeless photographic look, natural color balance, soft contrast, realistic tones";
-    case "프라임":
-      return "ultra detailed, razor-sharp focus, high-end render quality, rich micro-texture, high dynamic range";
-    case "시네마틱":
-      return "cinematic lighting and color grading, strong depth, subtle atmospheric haze, film-like mood";
-    default:
-      return "";
-  }
-}
-
-function getPresetDescription(presetArg) {
-  switch (presetArg) {
-    case "사진(일몰)":
-      return "dramatic warm lighting, long soft shadows, slightly backlit subject";
-    case "사진(정장)":
-      return "subject in a formal outfit or suit, portrait-focused composition";
-    case "제품":
-      return "clean product shot on a simple background, subject centered and well separated from the background";
-    default:
-      return "";
-  }
-}
-
-function getMidjourneyAspectRatio(presetArg) {
-  switch (presetArg) {
-    case "사진(정장)":
-      return "--ar 3:4";
-    case "제품":
-      return "--ar 1:1";
-    case "사진(일몰)":
-    default:
-      return "--ar 16:9";
-  }
-}
-
-function getMidjourneyStylize(stageArg) {
-  switch (stageArg) {
-    case "라이팅":
-      return "--stylize 150";
-    case "클래식":
-      return "--stylize 100";
-    case "프라임":
-      return "--stylize 250";
-    case "시네마틱":
-      return "--stylize 400";
-    default:
-      return "--stylize 150";
-  }
+function normalizeIdea(raw) {
+  return (raw || "").trim();
 }
 
 /* ─────────────────────────────
-   한국어 → 영어 아이디어 변환 훅 자리
-   (지금은 단순 trim만, 나중에 백엔드 번역 붙일 예정)
+   서버로 프롬프트 생성 요청
 ────────────────────────────────────────────── */
-function normalizeIdeaToEnglish(raw) {
-  const trimmed = (raw || "").trim();
-  // TODO: 나중에 백엔드 붙으면 여기서 한국어 → 영어 변환
-  return trimmed;
+async function requestPromptFromServer({
+  target,
+  stage,
+  preset,
+  idea,
+  tags,
+  refNote,
+}) {
+  const payload = {
+    target,
+    stage,
+    preset,
+    idea: normalizeIdea(idea),
+    tags: tags || [],
+    refNote: (refNote || "").trim(),
+  };
+
+  const res = await fetch(`${API_BASE}/api/prompt/generate`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok || !data.ok || !data.prompt) {
+    const msg =
+      data?.message ||
+      data?.error ||
+      "프롬프트 생성 중 오류가 발생했습니다.";
+    throw new Error(msg);
+  }
+
+  return String(data.prompt).trim();
 }
 
 export default function Generator() {
@@ -215,11 +196,12 @@ export default function Generator() {
   const [activeSample, setActiveSample] = useState(null);
   const [activeTab, setActiveTab] = useState("input");
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
 
   const [refImage, setRefImage] = useState(null);
   const [refImagePreview, setRefImagePreview] = useState(null);
   const [refNote, setRefNote] = useState("");
-  const [lockAppearance, setLockAppearance] = useState(true);
+  const [lockAppearance, setLockAppearance] = useState(true); // 지금은 서버에 힌트만 넘김(옵션으로 확장 가능)
 
   const outRef = useRef(null);
 
@@ -278,208 +260,8 @@ export default function Generator() {
   };
 
   /* ─────────────────────────────
-     핵심: 고퀄 롱프롬프트 빌더
-     - 씬(내용)은 최대한 사용자의 아이디어에 맡기고
-       우리는 "조명/스타일/네거티브/모델별 포맷"만 붙여준다.
+     샘플 적용
   ───────────────────────────── */
-
-  const buildPromptFor = ({
-    targetArg,
-    stageArg,
-    presetArg,
-    inputArg,
-    tagsArg,
-    refImagePresent,
-    refNoteArg,
-    lockAppearanceArg,
-  }) => {
-    const idea = normalizeIdeaToEnglish(inputArg);
-    const stageDesc = getStageDescription(stageArg);
-    const presetDesc = getPresetDescription(presetArg);
-    const styleTagsText =
-      tagsArg && tagsArg.length ? tagsArg.join(", ") : "";
-
-    const referenceBlock = (() => {
-      const hasNote = !!(refNoteArg && refNoteArg.trim());
-      if (!refImagePresent && !hasNote) return "";
-      const lines = ["REFERENCE:"];
-
-      if (refImagePresent) {
-        if (targetArg === "veo" || targetArg === "sora") {
-          lines.push(
-            "- Use the attached reference image as the main character/style guide for the video."
-          );
-        } else if (targetArg === "mj") {
-          lines.push(
-            "- Use the attached reference image together with this prompt (image prompt + text prompt)."
-          );
-        } else {
-          lines.push(
-            "- Use the attached reference image as the main visual guide."
-          );
-        }
-      }
-
-      if (lockAppearanceArg) {
-        if (targetArg === "veo" || targetArg === "sora") {
-          lines.push(
-            "- If there is a character in the reference, keep the same character design (face, body shape, hairstyle, colors) throughout the whole clip.",
-            "- Animate the character and environment, but do NOT redesign the character unless explicitly requested."
-          );
-        } else {
-          lines.push(
-            "- Keep the character's appearance exactly the same as the reference (face, body shape, hairstyle, colors).",
-            "- Do NOT change the original design unless it is explicitly requested in the brief."
-          );
-        }
-      } else {
-        lines.push(
-          "- Use the reference mainly for overall mood, color, and style. Moderate redesign is allowed if it fits the brief."
-        );
-      }
-
-      if (hasNote) {
-        lines.push(
-          `- Korean brief about the reference: ${refNoteArg.trim()}`
-        );
-      }
-
-      return lines.join("\n");
-    })();
-
-    /* ── Gemini: 정적 이미지 ── */
-    if (targetArg === "gemini") {
-      const subject =
-        idea ||
-        "cinematic portrait of a character standing in a neon city alley at night";
-
-      // SCENE = 아이디어 + 프리셋/태그를 한 줄에 섞어서 전달
-      const scenePieces = [subject];
-      if (presetDesc) scenePieces.push(presetDesc);
-      if (styleTagsText) scenePieces.push(styleTagsText);
-
-      const sceneLine = scenePieces.join(", ");
-
-      // LIGHT = 단계 위주 (조명 힌트)
-      const lightLine =
-        stageDesc ||
-        "soft directional key light, gentle shadows, clean highlights";
-
-      // STYLE = 고정 퀄리티 + 추가 태그
-      let styleLine =
-        "photorealistic, highly detailed, 8k resolution, ultra sharp focus, rich micro-texture, subtle film grain, natural but cinematic color balance";
-
-      const sceneBlock = `SCENE:\n${sceneLine}`;
-      const lightBlock = `LIGHT:\n${lightLine}`;
-      const styleBlock = `STYLE:\n${styleLine}`;
-      const negativeBlock =
-        "NEGATIVE:\nwatermark, logo, text, UI, overexposed highlights, blown-out whites, deformed hands, extra fingers, distorted face, low resolution, compression artifacts";
-
-      const main = [sceneBlock, lightBlock, styleBlock, negativeBlock].join(
-        "\n\n"
-      );
-
-      return referenceBlock ? [main, referenceBlock].join("\n\n") : main;
-    }
-
-    /* ── Veo: 시네마틱 비디오 ── */
-    if (targetArg === "veo") {
-      const base =
-        idea ||
-        "camera slowly glides through a neon city alley after rain, following a single character walking away from the camera";
-
-      const veoExtras = [];
-      if (presetDesc) veoExtras.push(presetDesc);
-      if (stageDesc) veoExtras.push(stageDesc);
-      if (styleTagsText) veoExtras.push(styleTagsText);
-
-      const extrasText = veoExtras.length ? `, ${veoExtras.join(", ")}` : "";
-      const scene = `${base}${extrasText}`;
-
-      const main = [
-        `High-end cinematic video, about 8–12 seconds at 24fps.`,
-        `Scene: ${scene}.`,
-        "",
-        "SHOT PLAN:",
-        "Shot 01 (2–3s) – Wide establishing shot: show the full environment and overall mood, slow dolly-in or crane movement.",
-        "Shot 02 (3–5s) – Medium shot: follow the main subject with a gentle tracking shot, keep the background in soft motion parallax.",
-        "Shot 03 (2–4s) – Closer hero shot: focus on the subject's face or upper body, emphasize emotion and lighting, subtle handheld micro-movements.",
-        "",
-        "CAMERA & LOOK:",
-        "35mm–50mm look, smooth motion, no sudden cuts, no fast zooms, no shaky cam.",
-        "Cinematic depth of field, soft bokeh in the background, consistent lighting and color from shot to shot.",
-        "",
-        "RESTRICTIONS:",
-        "No text or logos in the scene, no copyrighted character names, no UI elements, no split-screen, no picture-in-picture.",
-      ].join("\n");
-
-      return referenceBlock ? [main, referenceBlock].join("\n\n") : main;
-    }
-
-    /* ── Midjourney: /imagine ── */
-    if (targetArg === "mj") {
-      const content =
-        idea ||
-        "cinematic portrait of a stylish character standing in a neon city alley at night, detailed environment, rich lighting";
-
-      const mjExtras = [];
-      if (presetDesc) mjExtras.push(presetDesc);
-      if (stageDesc) mjExtras.push(stageDesc);
-      if (styleTagsText) mjExtras.push(styleTagsText);
-
-      const extrasText = mjExtras.length ? `, ${mjExtras.join(", ")}` : "";
-      const scene = `${content}${extrasText}`;
-
-      const ar = getMidjourneyAspectRatio(presetArg);
-      const stylize = getMidjourneyStylize(stageArg);
-
-      const line = `/imagine ${scene} --v 7 --style raw ${ar} ${stylize}`;
-
-      return referenceBlock ? [line, referenceBlock].join("\n\n") : line;
-    }
-
-    /* ── Sora: 8초 무드 클립 ── */
-    const base =
-      idea ||
-      "dusk city street, one person walking slowly toward the camera, traffic lights glowing in the background";
-
-    const soraExtras = [];
-    if (presetDesc) soraExtras.push(presetDesc);
-    if (stageDesc) soraExtras.push(stageDesc);
-    if (styleTagsText) soraExtras.push(styleTagsText);
-
-    const extrasText = soraExtras.length ? `, ${soraExtras.join(", ")}` : "";
-    const scene = `${base}${extrasText}`;
-
-    const main = [
-      `8 second cinematic video at 24fps.`,
-      `Scene: ${scene}.`,
-      "",
-      "CAMERA & MOTION:",
-      "Gentle handheld feel with subtle micro-movement, slow forward move toward the subject.",
-      "Keep motion smooth and readable, no fast whip pans or sudden cuts.",
-      "",
-      "LOOK & FEEL:",
-      "Filmic color grading, soft film grain, natural but dramatic lighting, clear silhouettes and strong depth.",
-      "",
-      "RESTRICTIONS:",
-      "No on-screen text, no logos, no watermarks, no UI, no split-screen effects.",
-    ].join("\n");
-
-    return referenceBlock ? [main, referenceBlock].join("\n\n") : main;
-  };
-
-  const buildPrompt = () =>
-    buildPromptFor({
-      targetArg: target,
-      stageArg: stage,
-      presetArg: preset,
-      inputArg: input,
-      tagsArg: tags,
-      refImagePresent: !!refImage,
-      refNoteArg: refNote,
-      lockAppearanceArg: lockAppearance,
-    });
 
   const applySample = (sampleId) => {
     const s = SAMPLE_SET.find((x) => x.id === sampleId);
@@ -493,9 +275,9 @@ export default function Generator() {
     setActiveTab("input");
   };
 
-  const applySampleAndGenerate = (sampleId) => {
+  const applySampleAndGenerate = async (sampleId) => {
     const s = SAMPLE_SET.find((x) => x.id === sampleId);
-    if (!s) return;
+    if (!s || isGenerating) return;
 
     const nextTarget = s.target || target;
     const nextStage = s.stage || stage;
@@ -510,47 +292,82 @@ export default function Generator() {
     setInput(nextInput);
     setTags(nextTags);
 
-    const p = buildPromptFor({
-      targetArg: nextTarget,
-      stageArg: nextStage,
-      presetArg: nextPreset,
-      inputArg: nextInput,
-      tagsArg: nextTags,
-      refImagePresent: !!refImage,
-      refNoteArg: refNote,
-      lockAppearanceArg: lockAppearance,
-    });
-    setOutput(p);
-    const rec = {
-      id: Date.now(),
-      target: nextTarget,
-      text: p,
-      at: prettyDate(),
-    };
-    const nextHistory = [rec, ...history].slice(0, MAX_HISTORY);
-    setHistory(nextHistory);
-    localStorage.setItem(LS_HISTORY, JSON.stringify(nextHistory));
-    setActiveTab("result");
-    setTimeout(() => {
-      if (outRef.current) {
-        outRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
-      }
-    }, 0);
+    try {
+      setIsGenerating(true);
+      const p = await requestPromptFromServer({
+        target: nextTarget,
+        stage: nextStage,
+        preset: nextPreset,
+        idea: nextInput,
+        tags: nextTags,
+        refNote,
+      });
+
+      setOutput(p);
+      const rec = {
+        id: Date.now(),
+        target: nextTarget,
+        text: p,
+        at: prettyDate(),
+      };
+      const nextHistory = [rec, ...history].slice(0, MAX_HISTORY);
+      setHistory(nextHistory);
+      localStorage.setItem(LS_HISTORY, JSON.stringify(nextHistory));
+      setActiveTab("result");
+      setTimeout(() => {
+        if (outRef.current) {
+          outRef.current.scrollIntoView({
+            behavior: "smooth",
+            block: "center",
+          });
+        }
+      }, 0);
+    } catch (e) {
+      console.error(e);
+      alert(e.message || "프롬프트 생성 중 오류가 발생했습니다.");
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
-  const onGenerate = () => {
-    const p = buildPrompt();
-    setOutput(p);
-    const rec = { id: Date.now(), target, text: p, at: prettyDate() };
-    const next = [rec, ...history].slice(0, MAX_HISTORY);
-    localStorage.setItem(LS_HISTORY, JSON.stringify(next));
-    setHistory(next);
-    setActiveTab("result");
-    setTimeout(() => {
-      if (outRef.current) {
-        outRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
-      }
-    }, 0);
+  const onGenerate = async () => {
+    if (!normalizeIdea(input) && !normalizeIdea(refNote)) {
+      alert("아이디어나 참고 설명을 먼저 입력해 주세요.");
+      return;
+    }
+    if (isGenerating) return;
+
+    try {
+      setIsGenerating(true);
+      const p = await requestPromptFromServer({
+        target,
+        stage,
+        preset,
+        idea: input,
+        tags,
+        refNote,
+      });
+
+      setOutput(p);
+      const rec = { id: Date.now(), target, text: p, at: prettyDate() };
+      const next = [rec, ...history].slice(0, MAX_HISTORY);
+      localStorage.setItem(LS_HISTORY, JSON.stringify(next));
+      setHistory(next);
+      setActiveTab("result");
+      setTimeout(() => {
+        if (outRef.current) {
+          outRef.current.scrollIntoView({
+            behavior: "smooth",
+            block: "center",
+          });
+        }
+      }, 0);
+    } catch (e) {
+      console.error(e);
+      alert(e.message || "프롬프트 생성 중 오류가 발생했습니다.");
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   const onCopy = async () => {
@@ -617,7 +434,7 @@ export default function Generator() {
             className="mt-2 sm:mt-0 self-start sm:self-auto h-9 px-3 rounded-xl border border-zinc-800 bg-zinc-900/70 hover:bg-zinc-800 text-xs"
             onClick={() =>
               alert(
-                "사용 가이드\n\n1) 위에서 타깃·단계·프리셋을 고르고\n2) [입력] 탭에서 장면과 참고 이미지를 적은 뒤\n3) [프롬프트 생성] 버튼을 누르세요.\n\n[결과] 탭에서 입력한 한국어 아이디어와 영어 롱프롬프트를 함께 볼 수 있습니다."
+                "사용 가이드\n\n1) 위에서 타깃·단계·프리셋을 고르고\n2) [입력] 탭에서 장면과 참고 이미지를 적은 뒤\n3) [프롬프트 생성] 버튼을 누르세요.\n\n[결과] 탭에서 입력한 아이디어와 영어 롱프롬프트를 함께 볼 수 있습니다."
               )
             }
           >
@@ -788,8 +605,8 @@ export default function Generator() {
                           참고 이미지 (선택)
                         </h2>
                         <span className="text-[10px] sm:text-[11px] text-zinc-500 text-left sm:text-right">
-                          업로드하면 프롬프트에 &quot;참고 이미지 기반&quot;
-                          문장이 자동으로 들어가요.
+                          업로드하면 AI가 &quot;참고 이미지 기반&quot;으로
+                          이해하고 생성하도록 안내할 수 있어요.
                         </span>
                       </div>
                       <label className="flex items-center justify-between gap-3 rounded-xl border border-dashed border-zinc-700 bg-zinc-950/60 px-3 py-2 text-xs text-zinc-400 hover:border-zinc-500 hover:bg-zinc-900/60 cursor-pointer">
@@ -842,7 +659,7 @@ export default function Generator() {
                             }
                             className="h-3.5 w-3.5 rounded border-zinc-700 bg-zinc-900"
                           />
-                          <span>캐릭터 외형 그대로 유지</span>
+                          <span>캐릭터 외형 그대로 유지 (향후 옵션)</span>
                         </label>
                         <span className="text-[10px] sm:text-[11px] text-zinc-500">
                           OFF 시 스타일·분위기만 참고.
@@ -927,22 +744,37 @@ export default function Generator() {
                 <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:flex-wrap sm:items-center">
                   <button
                     onClick={onGenerate}
-                    className="h-9 px-4 rounded-xl bg-white text-black font-medium hover:bg-zinc-200 text-sm w-full sm:w-auto"
+                    disabled={isGenerating}
+                    className={`h-9 px-4 rounded-xl bg-white text-black font-medium text-sm w-full sm:w-auto ${
+                      isGenerating
+                        ? "opacity-70 cursor-not-allowed"
+                        : "hover:bg-zinc-200"
+                    }`}
                   >
-                    프롬프트 생성
+                    {isGenerating ? "생성 중..." : "프롬프트 생성"}
                   </button>
 
                   <div className="flex gap-2 w-full sm:w-auto">
                     <button
                       onClick={onCopy}
-                      className="h-9 px-4 rounded-xl border border-zinc-800 bg-zinc-900/80 hover:bg-zinc-800 text-xs sm:text-sm flex-1 sm:flex-none whitespace-nowrap"
+                      disabled={!output}
+                      className={`h-9 px-4 rounded-xl border border-zinc-800 bg-zinc-900/80 text-xs sm:text-sm flex-1 sm:flex-none whitespace-nowrap ${
+                        output
+                          ? "hover:bg-zinc-800"
+                          : "opacity-60 cursor-not-allowed"
+                      }`}
                     >
                       {copyButtonLabel}
                     </button>
                     <button
                       type="button"
                       onClick={goToBoardWrite}
-                      className="h-9 px-4 rounded-xl border border-emerald-500/60 bg-emerald-500/10 text-emerald-300 text-xs sm:text-sm flex-1 sm:flex-none whitespace-nowrap"
+                      disabled={!output}
+                      className={`h-9 px-4 rounded-xl border border-emerald-500/60 bg-emerald-500/10 text-emerald-300 text-xs sm:text-sm flex-1 sm:flex-none whitespace-nowrap ${
+                        output
+                          ? "hover:bg-emerald-500/20"
+                          : "opacity-50 cursor-not-allowed"
+                      }`}
                     >
                       이 프롬프트로 게시글 쓰기
                     </button>
@@ -1018,11 +850,16 @@ export default function Generator() {
                       </button>
                       <button
                         type="button"
-                        onClick={(e) => {
+                        onClick={async (e) => {
                           e.stopPropagation();
-                          applySampleAndGenerate(s.id);
+                          await applySampleAndGenerate(s.id);
                         }}
-                        className="flex-1 h-7 rounded-lg bg-white text-black text-[11px] hover:bg-zinc-200"
+                        disabled={isGenerating}
+                        className={`flex-1 h-7 rounded-lg text-[11px] ${
+                          isGenerating
+                            ? "bg-zinc-400 text-black opacity-70 cursor-not-allowed"
+                            : "bg-white text-black hover:bg-zinc-200"
+                        }`}
                       >
                         바로 생성
                       </button>

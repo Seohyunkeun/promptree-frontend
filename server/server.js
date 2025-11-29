@@ -1,5 +1,7 @@
 // server/server.js
-// Promptree 게시판 전용 Express + SQLite 서버
+// Promptree 게시판 + 프롬프트 생성용 Express + SQLite 서버
+
+require("dotenv").config(); // ✅ .env 로딩 (NODE_ENV=production에서도 Railway/Render는 자체 env 사용)
 
 const express = require("express");
 const cors = require("cors");
@@ -22,7 +24,7 @@ app.use(express.json({ limit: "5mb" }));
 
 // ==== DB 세팅 ====
 // - 로컬: server/board.db 사용
-// - Render: BOARD_DB_PATH=/data/board.db 로 설정해서, 디스크에 저장
+// - Render/Railway: BOARD_DB_PATH=/data/board.db 로 설정해서, 디스크에 저장
 const DB_PATH = process.env.BOARD_DB_PATH || path.join(__dirname, "board.db");
 
 // /data 같은 커스텀 경로일 때, 상위 디렉터리가 없으면 만들어 줌
@@ -105,18 +107,152 @@ function getPostWithComments(id, cb) {
   });
 }
 
-// ==== 관리자 비밀번호 (간단 하드코딩) ====
-// Render 환경변수: BOARD_ADMIN_PW=wnrdma44#
-// 없으면 디폴트 "promptree-admin"
-const ADMIN_PASSWORD = process.env.BOARD_ADMIN_PW || "promptree-admin";
+// ==== 관리자 비밀번호 ====
+// .env 어디에 넣든 잡히도록 둘 다 지원
+// BOARD_ADMIN_PW=... or ADMIN_PASSWORD=...
+const ADMIN_PASSWORD =
+  process.env.BOARD_ADMIN_PW || process.env.ADMIN_PASSWORD || "promptree-admin";
 
-// 관리자 비밀번호 검증
+// ==== OpenAI 설정 ====
+// .env 예시: OPENAI_API_KEY=sk-xxx , OPENAI_MODEL=gpt-4.1-mini (옵션)
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4.1-mini";
+
+if (!OPENAI_API_KEY) {
+  console.warn(
+    "⚠️ OPENAI_API_KEY 가 설정되어 있지 않습니다. /api/prompt/generate 호출 시 500 에러가 납니다."
+  );
+}
+
+// ---- 관리자 비밀번호 검증 ----
 app.post("/api/admin/verify", (req, res) => {
   const { password } = req.body || {};
   if (password && password === ADMIN_PASSWORD) {
     return res.json({ ok: true });
   }
   return res.status(401).json({ ok: false, error: "INVALID_ADMIN_PASSWORD" });
+});
+
+// ==== 🔥 AI 프롬프트 생성 API ====
+// body:
+// {
+//   target: "gemini" | "veo" | "mj" | "sora",
+//   stage: "라이팅" | "클래식" | "프라임" | "시네마틱",
+//   preset: "사진(일몰)" | "사진(정장)" | "제품",
+//   idea: "루시퍼가 보름달 아래 서 있는 장면",
+//   tags: ["네온 조명", "시네마틱 구도"],
+//   refNote: "참고 이미지 설명 (선택)"
+// }
+app.post("/api/prompt/generate", async (req, res) => {
+  if (!OPENAI_API_KEY) {
+    return res
+      .status(500)
+      .json({ error: "OPENAI_API_KEY_MISSING", message: "서버에 OpenAI 키가 없습니다." });
+  }
+
+  const {
+    target = "gemini",
+    stage = "",
+    preset = "",
+    idea = "",
+    tags = [],
+    refNote = "",
+  } = req.body || {};
+
+  const trimmedIdea = (idea || "").trim();
+  if (!trimmedIdea) {
+    return res.status(400).json({ error: "IDEA_REQUIRED" });
+  }
+
+  const tagText = Array.isArray(tags) ? tags.join(", ") : String(tags || "");
+
+  const userContent = [
+    `You are an expert prompt engineer for image/video models (Gemini 2.5 Flash Image, Veo 3.1, Midjourney v7, OpenAI Sora 2).`,
+    `The user is using a Korean web app called "Promptree".`,
+    ``,
+    `TARGET MODEL: ${target}`,
+    `STAGE: ${stage || "N/A"}`,
+    `PRESET: ${preset || "N/A"}`,
+    ``,
+    `USER IDEA (Korean allowed):`,
+    `"${trimmedIdea}"`,
+    ``,
+    refNote
+      ? `REFERENCE NOTE (Korean allowed, about an optional reference image): "${refNote.trim()}"`
+      : "",
+    tagText ? `STYLE TAGS (soft preference): ${tagText}` : "",
+    ``,
+    `TASK:`,
+    `1. Understand the Korean text and imagine a visually rich scene that matches it.`,
+    `2. Design a high-quality prompt specialized for the given TARGET MODEL.`,
+    `3. Output ONLY the final prompt, in **English**, using clear sections.`,
+    ``,
+    `FORMAT (for image/video models):`,
+    `SCENE: one or two long sentences describing the scene, subjects, environment, mood, camera composition.`,
+    `LIGHT: lighting description tuned to the scene (time of day, direction, quality of light).`,
+    `STYLE: rendering style, level of detail, resolution, texture, color grading, etc.`,
+    `NEGATIVE: unwanted artifacts (watermark, text, logo, UI, low resolution, extra limbs, etc.).`,
+    ``,
+    `RULES:`,
+    `- Do NOT explain what you are doing.`,
+    `- Do NOT speak Korean in the output; English only.`,
+    `- No markdown, no bullet points outside of the four section labels.`,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  try {
+    // Node 18+ 에서는 fetch가 기본 내장
+    const resp = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: OPENAI_MODEL,
+        messages: [
+          {
+            role: "system",
+            content:
+              "You are a world-class prompt engineer for generative image and video models. You always produce concise but highly effective prompts.",
+          },
+          { role: "user", content: userContent },
+        ],
+        temperature: 0.9,
+        top_p: 0.95,
+      }),
+    });
+
+    if (!resp.ok) {
+      const errText = await resp.text();
+      console.error("OpenAI API error:", resp.status, errText);
+      return res.status(500).json({ error: "OPENAI_API_ERROR" });
+    }
+
+    const data = await resp.json();
+    const text =
+      data?.choices?.[0]?.message?.content &&
+      String(data.choices[0].message.content).trim();
+
+    if (!text) {
+      console.error("OpenAI response has no content:", data);
+      return res.status(500).json({ error: "OPENAI_EMPTY_RESPONSE" });
+    }
+
+    return res.json({
+      ok: true,
+      prompt: text,
+      meta: {
+        target,
+        stage,
+        preset,
+      },
+    });
+  } catch (e) {
+    console.error("OpenAI request failed:", e);
+    return res.status(500).json({ error: "OPENAI_REQUEST_FAILED" });
+  }
 });
 
 // ==== 게시글 목록 ====
@@ -447,7 +583,7 @@ app.post("/api/posts/:id/comments", (req, res) => {
   );
 });
 
-// ==== 댓글 삭제 (현재는 비번 없이 삭제, 나중에 비번 검증 추가 가능) ====
+// ==== 댓글 삭제 ====
 app.delete("/api/posts/:id/comments/:cid", (req, res) => {
   const { id, cid } = req.params;
 
