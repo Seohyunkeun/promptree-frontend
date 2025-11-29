@@ -128,8 +128,8 @@ export default function Home() {
               <p className="text-sm sm:text-base text-zinc-400 leading-relaxed">
                 이미지는 Gemini, 영상은 Veo·Sora, 스타일은 Midjourney.
                 <br className="hidden sm:block" />
-                형은 한국어로 장면만 적으면 되고, 나머지 롱프롬프트 설계는
-                여기서 다 한다고 보면 됨.
+                여러분은은 한국어로 장면만 적으면 되고, 나머지 롱프롬프트 설계는
+                여기서 다 한다고 보면 됩니다.
               </p>
             </div>
 
