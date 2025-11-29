@@ -190,6 +190,18 @@ function getMidjourneyStylize(stageArg) {
   }
 }
 
+/* ─────────────────────────────
+   한국어 → 영어 아이디어 변환 훅 자리
+   (지금은 단순 trim만, 나중에 백엔드 번역 붙일 예정)
+────────────────────────────── */
+function normalizeIdeaToEnglish(raw) {
+  const trimmed = (raw || "").trim();
+  // TODO:
+  // - 향후 백엔드에서 한국어 → 영어 변환 로직 붙일 예정
+  // - 현재는 유저가 영어로 입력하는 경우를 1차 타깃으로 둔다
+  return trimmed;
+}
+
 export default function Generator() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -280,7 +292,7 @@ export default function Generator() {
     refNoteArg,
     lockAppearanceArg,
   }) => {
-    const user = (inputArg || "").trim();
+    const ideaEn = normalizeIdeaToEnglish(inputArg);
     const stageDesc = getStageDescription(stageArg);
     const presetDesc = getPresetDescription(presetArg);
     const styleTagsText =
@@ -343,15 +355,22 @@ export default function Generator() {
     /* ── Gemini: 정적 이미지 ── */
     if (targetArg === "gemini") {
       const base =
-        user ||
+        ideaEn ||
         "cinematic portrait of a character standing in a neon city alley at night, rain on the ground and reflections of signs on wet pavement";
 
       const sceneLine = `${base}${extras}`;
-      const main = [
-        sceneLine,
-        "highly detailed, photorealistic, 8k resolution, ultra sharp focus, rich micro-texture, realistic skin and materials, subtle film grain, natural color balance",
-        "Negative: watermark, logo, text, UI, overexposed highlights, blown-out whites, deformed hands, extra fingers, distorted face, low resolution, compression artifacts",
-      ].join("\n");
+
+      const sceneBlock = `SCENE:\n${sceneLine}`;
+      const lightBlock =
+        "LIGHT:\nsoft directional key light, gentle shadows, clean highlights";
+      const styleBlock =
+        "STYLE:\nhighly detailed, photorealistic, 8k resolution, ultra sharp focus, rich micro-texture, realistic skin and materials, subtle film grain, natural color balance";
+      const negativeBlock =
+        "NEGATIVE:\nwatermark, logo, text, UI, overexposed highlights, blown-out whites, deformed hands, extra fingers, distorted face, low resolution, compression artifacts";
+
+      const main = [sceneBlock, lightBlock, styleBlock, negativeBlock].join(
+        "\n\n"
+      );
 
       return referenceBlock ? [main, referenceBlock].join("\n\n") : main;
     }
@@ -359,7 +378,7 @@ export default function Generator() {
     /* ── Veo: 시네마틱 비디오 ── */
     if (targetArg === "veo") {
       const base =
-        user ||
+        ideaEn ||
         "camera slowly glides through a neon city alley after rain, following a single character walking away from the camera";
 
       const scene = `${base}${extras}`;
@@ -386,7 +405,7 @@ export default function Generator() {
     /* ── Midjourney: /imagine ── */
     if (targetArg === "mj") {
       const content =
-        user ||
+        ideaEn ||
         "cinematic portrait of a stylish character standing in a neon city alley at night, detailed environment, rich lighting";
       const scene = `${content}${extras}`;
 
@@ -400,7 +419,7 @@ export default function Generator() {
 
     /* ── Sora: 8초 무드 클립 ── */
     const base =
-      user ||
+      ideaEn ||
       "dusk city street, one person walking slowly toward the camera, traffic lights glowing in the background";
 
     const scene = `${base}${extras}`;
@@ -570,7 +589,7 @@ export default function Generator() {
             className="mt-2 sm:mt-0 self-start sm:self-auto h-9 px-3 rounded-xl border border-zinc-800 bg-zinc-900/70 hover:bg-zinc-800 text-xs"
             onClick={() =>
               alert(
-                "사용 가이드\n\n1) 위에서 타깃·단계·프리셋을 고르고\n2) [입력] 탭에서 장면과 참고 이미지를 적은 뒤\n3) [프롬프트 생성] 버튼을 누르세요.\n\n[결과] 탭에서 프롬프트를 복사하거나 게시글로 보낼 수 있습니다."
+                "사용 가이드\n\n1) 위에서 타깃·단계·프리셋을 고르고\n2) [입력] 탭에서 장면과 참고 이미지를 적은 뒤\n3) [프롬프트 생성] 버튼을 누르세요.\n\n[결과] 탭에서 입력한 한국어 아이디어와 영어 롱프롬프트를 함께 볼 수 있습니다."
               )
             }
           >
@@ -849,9 +868,21 @@ export default function Generator() {
                   </>
                 ) : (
                   <>
-                    <div className="text-[10px] sm:text-[11px] text-zinc-500">
-                      {currentUsageLabel} · 이 텍스트 전체를 복사해서 해당 모델
-                      입력 칸에 붙여넣으면 됩니다.
+                    {/* 내가 입력한 한국어 아이디어 */}
+                    {input && (
+                      <div className="mb-3 rounded-xl border border-zinc-800 bg-zinc-950/80 px-3 py-2">
+                        <div className="text-[10px] text-zinc-500 mb-1">
+                          내가 입력한 아이디어 (한국어)
+                        </div>
+                        <div className="text-[12px] text-zinc-200 leading-5 whitespace-pre-wrap">
+                          {input}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="text-[10px] sm:text-[11px] text-zinc-500 mb-1">
+                      {currentUsageLabel} · 아래 영어 롱프롬프트 전체를 복사해서
+                      해당 모델 입력 칸에 붙여넣으면 됩니다.
                     </div>
                     <textarea
                       ref={outRef}
@@ -890,8 +921,8 @@ export default function Generator() {
                   </div>
 
                   <span className="w-full text-[10px] sm:text-xs text-zinc-500">
-                    생성 후 결과 탭에서 프롬프트를 확인·복사하거나 게시판으로
-                    보낼 수 있어요.
+                    생성 후 결과 탭에서 입력한 아이디어와 영어 롱프롬프트를 함께
+                    확인할 수 있어요.
                   </span>
                 </div>
               </div>
