@@ -4,6 +4,7 @@
 const express = require("express");
 const cors = require("cors");
 const path = require("path");
+const fs = require("fs"); // ✅ 디렉터리 생성용
 const sqlite3 = require("sqlite3").verbose();
 const { nanoid } = require("nanoid");
 
@@ -22,10 +23,18 @@ app.use(express.json({ limit: "5mb" }));
 // ==== DB 세팅 ====
 // - 로컬: server/board.db 사용
 // - Render: BOARD_DB_PATH=/data/board.db 로 설정해서, 디스크에 저장
-const dbPath = process.env.BOARD_DB_PATH || path.join(__dirname, "board.db");
-console.log("📌 Using SQLite DB at:", dbPath);
+const DB_PATH = process.env.BOARD_DB_PATH || path.join(__dirname, "board.db");
 
-const db = new sqlite3.Database(dbPath);
+// /data 같은 커스텀 경로일 때, 상위 디렉터리가 없으면 만들어 줌
+const dbDir = path.dirname(DB_PATH);
+try {
+  fs.mkdirSync(dbDir, { recursive: true });
+} catch (e) {
+  console.log("DB dir create skipped:", dbDir, e?.message || "");
+}
+
+console.log("📌 Using SQLite DB at:", DB_PATH);
+const db = new sqlite3.Database(DB_PATH);
 
 // 테이블 생성
 db.serialize(() => {
@@ -97,7 +106,7 @@ function getPostWithComments(id, cb) {
 }
 
 // ==== 관리자 비밀번호 (간단 하드코딩) ====
-// Render 환경변수: BOARD_ADMIN_PW=wnrdma44# (형이 쓰는 비번)
+// Render 환경변수: BOARD_ADMIN_PW=wnrdma44#
 // 없으면 디폴트 "promptree-admin"
 const ADMIN_PASSWORD = process.env.BOARD_ADMIN_PW || "promptree-admin";
 
@@ -438,7 +447,7 @@ app.post("/api/posts/:id/comments", (req, res) => {
   );
 });
 
-// ==== 댓글 삭제 (간단 버전) ====
+// ==== 댓글 삭제 (현재는 비번 없이 삭제, 나중에 비번 검증 추가 가능) ====
 app.delete("/api/posts/:id/comments/:cid", (req, res) => {
   const { id, cid } = req.params;
 
