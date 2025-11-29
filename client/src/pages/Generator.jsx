@@ -193,7 +193,7 @@ function getMidjourneyStylize(stageArg) {
 /* ─────────────────────────────
    한국어 → 영어 아이디어 변환 훅 자리
    (지금은 단순 trim만, 나중에 백엔드 번역 붙일 예정)
-────────────────────────────── */
+──────────────────────────────── */
 function normalizeIdeaToEnglish(raw) {
   const trimmed = (raw || "").trim();
   // TODO:
@@ -292,12 +292,27 @@ export default function Generator() {
     refNoteArg,
     lockAppearanceArg,
   }) => {
-    const ideaEn = normalizeIdeaToEnglish(inputArg);
+    const rawIdea = (inputArg || "").trim();
+    const ideaEn = normalizeIdeaToEnglish(rawIdea);
+    const ideaForModel = ideaEn || rawIdea; // 지금은 한글 그대로 넘기되, 나중에 영어로 변환
+    const hasIdea = !!ideaForModel;
+
     const stageDesc = getStageDescription(stageArg);
     const presetDesc = getPresetDescription(presetArg);
     const styleTagsText =
       tagsArg && tagsArg.length ? tagsArg.join(", ") : "";
 
+    // 프리셋/단계/태그는 "부가 설명"으로 묶어서 추가
+    const detailLines = [];
+    if (presetDesc) detailLines.push(`Time / environment: ${presetDesc}.`);
+    if (stageDesc) detailLines.push(`Lighting & mood: ${stageDesc}.`);
+    if (styleTagsText)
+      detailLines.push(`Extra style keywords: ${styleTagsText}.`);
+    const detailText = detailLines.length
+      ? `\n${detailLines.join("\n")}`
+      : "";
+
+    // 참고 이미지 블록
     const referenceBlock = (() => {
       const hasNote = !!(refNoteArg && refNoteArg.trim());
       if (!refImagePresent && !hasNote) return "";
@@ -348,33 +363,18 @@ export default function Generator() {
 
     /* ── Gemini: 정적 이미지 ── */
     if (targetArg === "gemini") {
-      const base =
-        ideaEn ||
-        "cinematic portrait of a character standing in a neon city alley at night, rain on the ground and reflections of signs on wet pavement";
+      const baseScene = hasIdea
+        ? `Create a single, highly detailed, photorealistic image that STRICTLY follows the following user idea (Korean is allowed): "${ideaForModel}". First, understand and translate this Korean text into English internally, then build the scene from that meaning.`
+        : "Create a cinematic, photorealistic image of a character standing in a neon city alley at night, with rain on the ground and reflections of neon signs on wet pavement.";
 
-      // SCENE: 아이디어만
-      const sceneLine = base;
+      const sceneBlock = `SCENE:\n${baseScene}${detailText}`;
 
-      // LIGHT: 프리셋 + 단계 묶어서
-      const lightPieces = [];
-      if (presetDesc) lightPieces.push(presetDesc);
-      if (stageDesc) lightPieces.push(stageDesc);
+      const lightBlock =
+        "LIGHT:\nsoft directional key light, gentle shadows, clean highlights (adjusted to match the scene description above).";
 
-      const lightLine = lightPieces.length
-        ? lightPieces.join(", ")
-        : "soft directional key light, gentle shadows, clean highlights";
+      const styleBlock =
+        "STYLE:\nphotorealistic, highly detailed, 8k resolution, ultra sharp focus, rich micro-texture, subtle film grain, natural but cinematic color balance";
 
-      // STYLE: 기본 퀄리티 + 태그
-      let styleLine =
-        "highly detailed, photorealistic, 8k resolution, ultra sharp focus, rich micro-texture, realistic skin and materials, subtle film grain, natural color balance";
-
-      if (styleTagsText) {
-        styleLine += `, ${styleTagsText}`;
-      }
-
-      const sceneBlock = `SCENE:\n${sceneLine}`;
-      const lightBlock = `LIGHT:\n${lightLine}`;
-      const styleBlock = `STYLE:\n${styleLine}`;
       const negativeBlock =
         "NEGATIVE:\nwatermark, logo, text, UI, overexposed highlights, blown-out whites, deformed hands, extra fingers, distorted face, low resolution, compression artifacts";
 
@@ -387,21 +387,15 @@ export default function Generator() {
 
     /* ── Veo: 시네마틱 비디오 ── */
     if (targetArg === "veo") {
-      const base =
-        ideaEn ||
-        "camera slowly glides through a neon city alley after rain, following a single character walking away from the camera";
+      const base = hasIdea
+        ? `A cinematic video built from the following user idea (Korean is allowed, understand and follow the meaning): "${ideaForModel}".`
+        : "Camera slowly glides through a neon city alley after rain, following a single character walking away from the camera.";
 
-      const veoExtras = [];
-      if (presetDesc) veoExtras.push(presetDesc);
-      if (stageDesc) veoExtras.push(stageDesc);
-      if (styleTagsText) veoExtras.push(styleTagsText);
-
-      const extrasText = veoExtras.length ? `, ${veoExtras.join(", ")}` : "";
-      const scene = `${base}${extrasText}`;
+      const scene = `${base}${detailText ? " " + detailText : ""}`;
 
       const main = [
         `High-end cinematic video, about 8–12 seconds at 24fps.`,
-        `Scene: ${scene}.`,
+        `Scene: ${scene}`,
         "",
         "SHOT PLAN:",
         "Shot 01 (2–3s) – Wide establishing shot: show the full environment, city details and overall mood, slow dolly-in or crane movement.",
@@ -421,17 +415,19 @@ export default function Generator() {
 
     /* ── Midjourney: /imagine ── */
     if (targetArg === "mj") {
-      const content =
-        ideaEn ||
-        "cinematic portrait of a stylish character standing in a neon city alley at night, detailed environment, rich lighting";
+      const baseContent = hasIdea
+        ? `highly detailed illustration of: ${ideaForModel}`
+        : "cinematic portrait of a stylish character standing in a neon city alley at night, detailed environment, rich lighting";
 
       const mjExtras = [];
       if (presetDesc) mjExtras.push(presetDesc);
       if (stageDesc) mjExtras.push(stageDesc);
       if (styleTagsText) mjExtras.push(styleTagsText);
+      const extrasInline = mjExtras.length
+        ? `, ${mjExtras.join(", ")}`
+        : "";
 
-      const extrasText = mjExtras.length ? `, ${mjExtras.join(", ")}` : "";
-      const scene = `${content}${extrasText}`;
+      const scene = `${baseContent}${extrasInline}`;
 
       const ar = getMidjourneyAspectRatio(presetArg);
       const stylize = getMidjourneyStylize(stageArg);
@@ -442,21 +438,15 @@ export default function Generator() {
     }
 
     /* ── Sora: 8초 무드 클립 ── */
-    const base =
-      ideaEn ||
-      "dusk city street, one person walking slowly toward the camera, traffic lights glowing in the background";
+    const base = hasIdea
+      ? `A cinematic 8 second clip based on the following user idea (Korean is allowed, understand and follow the meaning): "${ideaForModel}".`
+      : "Dusk city street, one person walking slowly toward the camera, traffic lights glowing in the background.";
 
-    const soraExtras = [];
-    if (presetDesc) soraExtras.push(presetDesc);
-    if (stageDesc) soraExtras.push(stageDesc);
-    if (styleTagsText) soraExtras.push(styleTagsText);
-
-    const extrasText = soraExtras.length ? `, ${soraExtras.join(", ")}` : "";
-    const scene = `${base}${extrasText}`;
+    const scene = `${base}${detailText ? " " + detailText : ""}`;
 
     const main = [
       `8 second cinematic video at 24fps.`,
-      `Scene: ${scene}.`,
+      `Scene: ${scene}`,
       "",
       "CAMERA & MOTION:",
       "Gentle handheld feel with subtle micro-movement, slow forward move toward the subject.",
@@ -748,7 +738,7 @@ export default function Generator() {
                       </span>
                     )}
                   </div>
-                <div className="text-[10px] sm:text-[11px] text-zinc-500 text-right shrink-0">
+                  <div className="text-[10px] sm:text-[11px] text-zinc-500 text-right shrink-0">
                     <div>입력 글자수: {charCount}</div>
                     <div>입력 토큰: {inputTokenEstimate}</div>
                     <div>결과 토큰: {outputTokenCount}</div>
