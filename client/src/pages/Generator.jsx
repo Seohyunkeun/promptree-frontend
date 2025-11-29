@@ -654,7 +654,7 @@ export default function Generator() {
                 ))}
               </div>
               <p className="text-[11px] text-zinc-500 leading-5">
-                프리셋은 추천 조합이고, 실제 문장은 형이 편하게 한글로 한 줄
+                프리셋은 추천 조합이고, 실제 문장은 사용자가 편하게 한글로 한 줄
                 적는 걸 기준으로 잡았어.
               </p>
             </section>
