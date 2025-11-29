@@ -133,18 +133,19 @@ const estimateTokens = (t = "") => Math.ceil((t || "").length / 4);
 
 /* ─────────────────────────────
    단계/프리셋 → 스타일 텍스트
-────────────────────────────── */
+   (너무 강한 한 장면 고정이 아니라 "힌트"만 주는 정도로 조정)
+────────────────────────────────────────────── */
 
 function getStageDescription(stageArg) {
   switch (stageArg) {
     case "라이팅":
-      return "high-end studio lighting, soft directional key light, gentle shadows, clean highlights";
+      return "soft but directional studio lighting, gentle shadows, clean highlights";
     case "클래식":
-      return "timeless photography look, natural color balance, soft contrast, realistic tones";
+      return "timeless photographic look, natural color balance, soft contrast, realistic tones";
     case "프라임":
-      return "ultra detailed, razor-sharp focus, 8k render quality, rich micro-texture, high dynamic range";
+      return "ultra detailed, razor-sharp focus, high-end render quality, rich micro-texture, high dynamic range";
     case "시네마틱":
-      return "cinematic lighting, deep contrast, film-like color grading, atmospheric depth, subtle bloom";
+      return "cinematic lighting and color grading, strong depth, subtle atmospheric haze, film-like mood";
     default:
       return "";
   }
@@ -153,11 +154,11 @@ function getStageDescription(stageArg) {
 function getPresetDescription(presetArg) {
   switch (presetArg) {
     case "사진(일몰)":
-      return "golden hour, warm sunlight, long soft shadows, glowing sky, subtle rim light on the subject";
+      return "dramatic warm lighting, long soft shadows, slightly backlit subject";
     case "사진(정장)":
-      return "formal outfit, clean background, fashion editorial mood, confident pose, subtle vignetting";
+      return "subject in a formal outfit or suit, portrait-focused composition";
     case "제품":
-      return "product photography on seamless background, soft studio light, crisp edges, minimal reflections";
+      return "clean product shot on a simple background, subject centered and well separated from the background";
     default:
       return "";
   }
@@ -193,12 +194,10 @@ function getMidjourneyStylize(stageArg) {
 /* ─────────────────────────────
    한국어 → 영어 아이디어 변환 훅 자리
    (지금은 단순 trim만, 나중에 백엔드 번역 붙일 예정)
-──────────────────────────────── */
+────────────────────────────────────────────── */
 function normalizeIdeaToEnglish(raw) {
   const trimmed = (raw || "").trim();
-  // TODO:
-  // - 향후 백엔드에서 한국어 → 영어 변환 로직 붙일 예정
-  // - 현재는 유저가 영어로 입력하는 경우를 1차 타깃으로 둔다
+  // TODO: 나중에 백엔드 붙으면 여기서 한국어 → 영어 변환
   return trimmed;
 }
 
@@ -280,6 +279,8 @@ export default function Generator() {
 
   /* ─────────────────────────────
      핵심: 고퀄 롱프롬프트 빌더
+     - 씬(내용)은 최대한 사용자의 아이디어에 맡기고
+       우리는 "조명/스타일/네거티브/모델별 포맷"만 붙여준다.
   ───────────────────────────── */
 
   const buildPromptFor = ({
@@ -292,27 +293,12 @@ export default function Generator() {
     refNoteArg,
     lockAppearanceArg,
   }) => {
-    const rawIdea = (inputArg || "").trim();
-    const ideaEn = normalizeIdeaToEnglish(rawIdea);
-    const ideaForModel = ideaEn || rawIdea; // 지금은 한글 그대로 넘기되, 나중에 영어로 변환
-    const hasIdea = !!ideaForModel;
-
+    const idea = normalizeIdeaToEnglish(inputArg);
     const stageDesc = getStageDescription(stageArg);
     const presetDesc = getPresetDescription(presetArg);
     const styleTagsText =
       tagsArg && tagsArg.length ? tagsArg.join(", ") : "";
 
-    // 프리셋/단계/태그는 "부가 설명"으로 묶어서 추가
-    const detailLines = [];
-    if (presetDesc) detailLines.push(`Time / environment: ${presetDesc}.`);
-    if (stageDesc) detailLines.push(`Lighting & mood: ${stageDesc}.`);
-    if (styleTagsText)
-      detailLines.push(`Extra style keywords: ${styleTagsText}.`);
-    const detailText = detailLines.length
-      ? `\n${detailLines.join("\n")}`
-      : "";
-
-    // 참고 이미지 블록
     const referenceBlock = (() => {
       const hasNote = !!(refNoteArg && refNoteArg.trim());
       if (!refImagePresent && !hasNote) return "";
@@ -363,18 +349,29 @@ export default function Generator() {
 
     /* ── Gemini: 정적 이미지 ── */
     if (targetArg === "gemini") {
-      const baseScene = hasIdea
-        ? `Create a single, highly detailed, photorealistic image that STRICTLY follows the following user idea (Korean is allowed): "${ideaForModel}". First, understand and translate this Korean text into English internally, then build the scene from that meaning.`
-        : "Create a cinematic, photorealistic image of a character standing in a neon city alley at night, with rain on the ground and reflections of neon signs on wet pavement.";
+      const subject =
+        idea ||
+        "cinematic portrait of a character standing in a neon city alley at night";
 
-      const sceneBlock = `SCENE:\n${baseScene}${detailText}`;
+      // SCENE = 아이디어 + 프리셋/태그를 한 줄에 섞어서 전달
+      const scenePieces = [subject];
+      if (presetDesc) scenePieces.push(presetDesc);
+      if (styleTagsText) scenePieces.push(styleTagsText);
 
-      const lightBlock =
-        "LIGHT:\nsoft directional key light, gentle shadows, clean highlights (adjusted to match the scene description above).";
+      const sceneLine = scenePieces.join(", ");
 
-      const styleBlock =
-        "STYLE:\nphotorealistic, highly detailed, 8k resolution, ultra sharp focus, rich micro-texture, subtle film grain, natural but cinematic color balance";
+      // LIGHT = 단계 위주 (조명 힌트)
+      const lightLine =
+        stageDesc ||
+        "soft directional key light, gentle shadows, clean highlights";
 
+      // STYLE = 고정 퀄리티 + 추가 태그
+      let styleLine =
+        "photorealistic, highly detailed, 8k resolution, ultra sharp focus, rich micro-texture, subtle film grain, natural but cinematic color balance";
+
+      const sceneBlock = `SCENE:\n${sceneLine}`;
+      const lightBlock = `LIGHT:\n${lightLine}`;
+      const styleBlock = `STYLE:\n${styleLine}`;
       const negativeBlock =
         "NEGATIVE:\nwatermark, logo, text, UI, overexposed highlights, blown-out whites, deformed hands, extra fingers, distorted face, low resolution, compression artifacts";
 
@@ -387,18 +384,24 @@ export default function Generator() {
 
     /* ── Veo: 시네마틱 비디오 ── */
     if (targetArg === "veo") {
-      const base = hasIdea
-        ? `A cinematic video built from the following user idea (Korean is allowed, understand and follow the meaning): "${ideaForModel}".`
-        : "Camera slowly glides through a neon city alley after rain, following a single character walking away from the camera.";
+      const base =
+        idea ||
+        "camera slowly glides through a neon city alley after rain, following a single character walking away from the camera";
 
-      const scene = `${base}${detailText ? " " + detailText : ""}`;
+      const veoExtras = [];
+      if (presetDesc) veoExtras.push(presetDesc);
+      if (stageDesc) veoExtras.push(stageDesc);
+      if (styleTagsText) veoExtras.push(styleTagsText);
+
+      const extrasText = veoExtras.length ? `, ${veoExtras.join(", ")}` : "";
+      const scene = `${base}${extrasText}`;
 
       const main = [
         `High-end cinematic video, about 8–12 seconds at 24fps.`,
-        `Scene: ${scene}`,
+        `Scene: ${scene}.`,
         "",
         "SHOT PLAN:",
-        "Shot 01 (2–3s) – Wide establishing shot: show the full environment, city details and overall mood, slow dolly-in or crane movement.",
+        "Shot 01 (2–3s) – Wide establishing shot: show the full environment and overall mood, slow dolly-in or crane movement.",
         "Shot 02 (3–5s) – Medium shot: follow the main subject with a gentle tracking shot, keep the background in soft motion parallax.",
         "Shot 03 (2–4s) – Closer hero shot: focus on the subject's face or upper body, emphasize emotion and lighting, subtle handheld micro-movements.",
         "",
@@ -415,19 +418,17 @@ export default function Generator() {
 
     /* ── Midjourney: /imagine ── */
     if (targetArg === "mj") {
-      const baseContent = hasIdea
-        ? `highly detailed illustration of: ${ideaForModel}`
-        : "cinematic portrait of a stylish character standing in a neon city alley at night, detailed environment, rich lighting";
+      const content =
+        idea ||
+        "cinematic portrait of a stylish character standing in a neon city alley at night, detailed environment, rich lighting";
 
       const mjExtras = [];
       if (presetDesc) mjExtras.push(presetDesc);
       if (stageDesc) mjExtras.push(stageDesc);
       if (styleTagsText) mjExtras.push(styleTagsText);
-      const extrasInline = mjExtras.length
-        ? `, ${mjExtras.join(", ")}`
-        : "";
 
-      const scene = `${baseContent}${extrasInline}`;
+      const extrasText = mjExtras.length ? `, ${mjExtras.join(", ")}` : "";
+      const scene = `${content}${extrasText}`;
 
       const ar = getMidjourneyAspectRatio(presetArg);
       const stylize = getMidjourneyStylize(stageArg);
@@ -438,15 +439,21 @@ export default function Generator() {
     }
 
     /* ── Sora: 8초 무드 클립 ── */
-    const base = hasIdea
-      ? `A cinematic 8 second clip based on the following user idea (Korean is allowed, understand and follow the meaning): "${ideaForModel}".`
-      : "Dusk city street, one person walking slowly toward the camera, traffic lights glowing in the background.";
+    const base =
+      idea ||
+      "dusk city street, one person walking slowly toward the camera, traffic lights glowing in the background";
 
-    const scene = `${base}${detailText ? " " + detailText : ""}`;
+    const soraExtras = [];
+    if (presetDesc) soraExtras.push(presetDesc);
+    if (stageDesc) soraExtras.push(stageDesc);
+    if (styleTagsText) soraExtras.push(styleTagsText);
+
+    const extrasText = soraExtras.length ? `, ${soraExtras.join(", ")}` : "";
+    const scene = `${base}${extrasText}`;
 
     const main = [
       `8 second cinematic video at 24fps.`,
-      `Scene: ${scene}`,
+      `Scene: ${scene}.`,
       "",
       "CAMERA & MOTION:",
       "Gentle handheld feel with subtle micro-movement, slow forward move toward the subject.",
@@ -902,8 +909,8 @@ export default function Generator() {
                     )}
 
                     <div className="text-[10px] sm:text-[11px] text-zinc-500 mb-1">
-                      {currentUsageLabel} · 아래 영어 롱프롬프트 전체를 복사해서
-                      해당 모델 입력 칸에 붙여넣으면 됩니다.
+                      {currentUsageLabel} · 아래 롱프롬프트 전체를 복사해서 해당
+                      모델 입력 칸에 붙여넣으면 됩니다.
                     </div>
                     <textarea
                       ref={outRef}
@@ -942,7 +949,7 @@ export default function Generator() {
                   </div>
 
                   <span className="w-full text-[10px] sm:text-xs text-zinc-500">
-                    생성 후 결과 탭에서 입력한 아이디어와 영어 롱프롬프트를 함께
+                    생성 후 결과 탭에서 입력한 아이디어와 롱프롬프트를 함께
                     확인할 수 있어요.
                   </span>
                 </div>
