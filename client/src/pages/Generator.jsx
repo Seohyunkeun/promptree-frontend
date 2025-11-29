@@ -4,7 +4,6 @@ import { useSearchParams, useNavigate } from "react-router-dom";
 
 /* ─────────────────────────────────────────────
    Promptree 생성기
-   - 한글 한 줄 입력 → 타깃별 롱프롬프트 자동 설계
    - 모바일: [설정 패널] → [입력/결과 카드] → [샘플] → [히스토리]
    - 데스크톱: 좌측 패널 / 우측 메인 2컬럼
    - 전체 가로 스크롤 차단
@@ -22,24 +21,24 @@ const TARGETS = [
 
 const TARGET_META = {
   gemini: {
-    subtitle: "정적 이미지 · 묘사 중심",
+    subtitle: "정적 이미지 · 묘사 중심 (고퀄 사진/일러스트)",
     placeholder:
-      "예) 비 오는 네온 시티 골목, 우산을 든 인물의 클로즈업, 젖은 바닥에 반사된 불빛, 시네마틱 무드",
+      "예) 비 오는 네온 시티 골목에서 우산을 들고 서 있는 소녀, 카메라를 살짝 바라보는 느낌",
   },
   veo: {
-    subtitle: "비디오 · 샷 플랜/카메라 동선",
+    subtitle: "비디오 · 샷 플랜/카메라 동선 (릴스/틱톡용)",
     placeholder:
-      "예) 카메라가 네온 숲 사이를 천천히 날아가며, 나무에서 흘러나오는 빛과 입자가 흐르는 장면",
+      "예) 카메라가 골목을 따라 전진하면서 네온 간판과 인물이 번갈아 잡히는 장면",
   },
   mj: {
-    subtitle: "/imagine 파라미터 · 스타일",
+    subtitle: "/imagine 파라미터 · 스타일 (V7 최적화)",
     placeholder:
-      "예) futuristic cyberpunk city street at night, neon lights, rainy reflections, cinematic, highly detailed",
+      "예) 미래 도시 옥상에서 서 있는 인물, 강한 사이버펑크 무드, 네온, 비 내리는 밤",
   },
   sora: {
-    subtitle: "클립 블루프린트 · 오디오 싱크",
+    subtitle: "클립 블루프린트 · 8초 무드 영상",
     placeholder:
-      "예) dusk city street, one person walking slowly toward camera, traffic lights in the background, cinematic slow motion",
+      "예) 석양 지는 도시를 배경으로 한 인물이 카메라 쪽으로 천천히 걸어오는 장면",
   },
 };
 
@@ -53,31 +52,6 @@ const STYLE_TAGS = [
   "얕은 심도",
 ];
 
-/** 단계/프리셋/태그 → 영어 스타일 힌트 매핑  -------------------------------- */
-
-const STAGE_HINTS = {
-  라이팅: "studio lighting, controlled light setup, clean shadows",
-  클래식: "classic balanced composition, natural colors",
-  프라임: "high-end prime lens look, crisp detail, shallow depth of field",
-  시네마틱: "cinematic framing, film look, dramatic lighting",
-};
-
-const PRESET_HINTS = {
-  "사진(일몰)": "golden hour sunset lighting, warm tones, long soft shadows",
-  "사진(정장)": "formal portrait style, clean background, professional look",
-  제품: "product photography, seamless background, soft studio light",
-};
-
-const STYLE_HINTS = {
-  "시네마틱 구도": "cinematic composition",
-  "필름 그레인": "subtle film grain texture",
-  "스튜디오 조명": "studio light setup, softbox key light",
-  "아날로그 필름 느낌": "analog film look, gentle halation, vintage tone",
-  "부드러운 빛 번짐": "soft light bloom, gentle glow",
-  "네온 조명": "neon lighting, vibrant color contrast",
-  "얕은 심도": "shallow depth of field, strong background blur",
-};
-
 const SAMPLE_SET = [
   {
     id: "gemini-neon-city",
@@ -85,7 +59,7 @@ const SAMPLE_SET = [
     target: "gemini",
     stage: "시네마틱",
     preset: "사진(일몰)",
-    text: "비가 막 그친 도쿄 네온 골목, 젖은 바닥에 간판 불빛이 반사되고, 우산을 든 인물이 실루엣으로 서 있음. 카메라는 허리 위 클로즈업, 시네마틱 무드.",
+    text: "비가 막 그친 네온 간판 골목, 바닥에 물이 고여 간판 불빛이 반사되고, 우산을 든 인물이 카메라를 등지고 서 있다가 살짝 돌아보는 장면.",
     tags: ["네온 조명", "얕은 심도", "시네마틱 구도"],
   },
   {
@@ -94,7 +68,7 @@ const SAMPLE_SET = [
     target: "gemini",
     stage: "라이팅",
     preset: "제품",
-    text: "심플한 흰 배경 위에 하이엔드 PVC 피규어 하나가 중앙에 세워져 있고, 부드러운 상단 소프트 라이트와 약한 그림자가 드리워져 있는 제품 촬영.",
+    text: "심플한 그라데이션 배경 위에 하이엔드 피규어 하나가 중앙에 놓여 있고, 위에서 내려오는 부드러운 소프트박스 조명과 얕은 그림자가 살짝 드리워진 장면.",
     tags: ["스튜디오 조명", "부드러운 빛 번짐"],
   },
   {
@@ -103,16 +77,16 @@ const SAMPLE_SET = [
     target: "mj",
     stage: "클래식",
     preset: "사진(정장)",
-    text: "석양빛이 비치는 옥상 위, 서로 다른 스타일의 수트를 입은 인물 세 명이 걸어가며 웃고 있는 패션 화보. 바람에 휘날리는 옷감 디테일, 따뜻한 골든 아워 톤.",
+    text: "석양이 비치는 옥상 위, 서로 다른 수트를 입은 세 명의 인물이 카메라 쪽으로 걸어오며 웃고 있는 패션 화보 컷.",
     tags: ["필름 그레인", "시네마틱 구도"],
   },
   {
     id: "mj-character-portrait",
-    label: "캐릭터 인물 일러스트",
+    label: "사이버 캐릭터 포트레이트",
     target: "mj",
     stage: "프라임",
     preset: "사진(정장)",
-    text: "미래 도시 네온 배경 앞에 서 있는 여성 사이버펑크 캐릭터, 짧은 헤어와 홀로그램 재킷, 정면 상반신 포즈, 강렬한 눈빛과 대비 높은 색감.",
+    text: "네온이 가득한 미래 도시를 배경으로 서 있는 여성 사이버펑크 캐릭터, 짧은 헤어와 홀로그램 재킷, 상반신 정면 포즈, 강렬한 눈빛.",
     tags: ["네온 조명"],
   },
   {
@@ -121,7 +95,7 @@ const SAMPLE_SET = [
     target: "veo",
     stage: "시네마틱",
     preset: "사진(일몰)",
-    text: "감정을 데이터로 업로드하는 미래형 정신과 대기실, 환자들이 투명한 캡슐 의자에 앉아 있고, 벽면엔 감정 그래프가 떠 있는 홀로그램 스크린이 줄지어 있음.",
+    text: "감정을 데이터로 저장하는 미래형 정신과 로비, 투명 캡슐 의자에 앉은 사람들, 벽면엔 감정 그래프가 떠 있는 홀로그램 스크린이 줄지어 있는 장면.",
     tags: ["시네마틱 구도", "아날로그 필름 느낌"],
   },
   {
@@ -130,7 +104,7 @@ const SAMPLE_SET = [
     target: "sora",
     stage: "시네마틱",
     preset: "사진(일몰)",
-    text: "석양이 지는 도심 거리, 한 인물이 카메라 쪽으로 천천히 걸어오며 주변 차와 사람들은 살짝 흐릿하게 움직이는 슬로우 모션 느낌.",
+    text: "석양이 지는 도심 거리, 한 인물이 카메라 쪽으로 천천히 걸어오고, 뒤쪽 차량과 사람들은 살짝 블러 처리된 슬로우 모션 느낌.",
     tags: ["필름 그레인", "부드러운 빛 번짐"],
   },
 ];
@@ -157,6 +131,65 @@ const prettyDate = (d = new Date()) =>
 
 const estimateTokens = (t = "") => Math.ceil((t || "").length / 4);
 
+/* ─────────────────────────────
+   단계/프리셋 → 스타일 텍스트
+────────────────────────────── */
+
+function getStageDescription(stageArg) {
+  switch (stageArg) {
+    case "라이팅":
+      return "high-end studio lighting, soft directional key light, gentle shadows, clean highlights";
+    case "클래식":
+      return "timeless photography look, natural color balance, soft contrast, realistic tones";
+    case "프라임":
+      return "ultra detailed, razor-sharp focus, 8k render quality, rich micro-texture, high dynamic range";
+    case "시네마틱":
+      return "cinematic lighting, deep contrast, film-like color grading, atmospheric depth, subtle bloom";
+    default:
+      return "";
+  }
+}
+
+function getPresetDescription(presetArg) {
+  switch (presetArg) {
+    case "사진(일몰)":
+      return "golden hour, warm sunlight, long soft shadows, glowing sky, subtle rim light on the subject";
+    case "사진(정장)":
+      return "formal outfit, clean background, fashion editorial mood, confident pose, subtle vignetting";
+    case "제품":
+      return "product photography on seamless background, soft studio light, crisp edges, minimal reflections";
+    default:
+      return "";
+  }
+}
+
+function getMidjourneyAspectRatio(presetArg) {
+  switch (presetArg) {
+    case "사진(정장)":
+      return "--ar 3:4";
+    case "제품":
+      return "--ar 1:1";
+    case "사진(일몰)":
+    default:
+      return "--ar 16:9";
+  }
+}
+
+function getMidjourneyStylize(stageArg) {
+  switch (stageArg) {
+    case "라이팅":
+      return "--stylize 150";
+    case "클래식":
+      return "--stylize 100";
+    case "프라임":
+      return "--stylize 250";
+    case "시네마틱":
+      return "--stylize 400";
+    default:
+      return "--stylize 150";
+  }
+}
+
 export default function Generator() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -164,7 +197,7 @@ export default function Generator() {
   const [stage, setStage] = useState("라이팅");
   const [preset, setPreset] = useState("사진(일몰)");
   const [target, setTarget] = useState(TARGETS[0].id);
-  const [input, setInput] = useState(""); // 🔥 여전히 한 칸짜리 메인 입력
+  const [input, setInput] = useState("");
   const [tags, setTags] = useState([]);
   const [output, setOutput] = useState("");
   const [history, setHistory] = useState([]);
@@ -233,7 +266,10 @@ export default function Generator() {
     setRefImagePreview(null);
   };
 
-  /** 🔥 핵심: 한 줄 입력을 타깃별 “얼굴 빵빵한 롱프롬프트”로 바꾸는 엔진 */
+  /* ─────────────────────────────
+     핵심: 고퀄 롱프롬프트 빌더
+  ───────────────────────────── */
+
   const buildPromptFor = ({
     targetArg,
     stageArg,
@@ -244,33 +280,18 @@ export default function Generator() {
     refNoteArg,
     lockAppearanceArg,
   }) => {
-    const userKo = (inputArg || "").trim();
+    const user = (inputArg || "").trim();
+    const stageDesc = getStageDescription(stageArg);
+    const presetDesc = getPresetDescription(presetArg);
+    const styleTagsText =
+      tagsArg && tagsArg.length ? tagsArg.join(", ") : "";
 
-    // 단계/프리셋/태그를 영어 스타일 힌트로 합치기
-    const styleHints = [];
+    const extraPieces = [];
+    if (presetDesc) extraPieces.push(presetDesc);
+    if (stageDesc) extraPieces.push(stageDesc);
+    if (styleTagsText) extraPieces.push(styleTagsText);
+    const extras = extraPieces.length ? `, ${extraPieces.join(", ")}` : "";
 
-    if (stageArg && STAGE_HINTS[stageArg]) {
-      styleHints.push(STAGE_HINTS[stageArg]);
-    }
-    if (presetArg && PRESET_HINTS[presetArg]) {
-      styleHints.push(PRESET_HINTS[presetArg]);
-    }
-    if (tagsArg && tagsArg.length) {
-      styleHints.push(
-        tagsArg
-          .map((t) => STYLE_HINTS[t] || t)
-          .join(", ")
-      );
-    }
-
-    const styleHintsText = styleHints.length
-      ? styleHints.join(", ")
-      : "";
-
-    const stageText = stageArg ? ` (${stageArg})` : "";
-    const presetText = presetArg ? ` / PRESET: ${presetArg}` : "";
-
-    // 참고 이미지 블록
     const referenceBlock = (() => {
       const hasNote = !!(refNoteArg && refNoteArg.trim());
       if (!refImagePresent && !hasNote) return "";
@@ -319,117 +340,86 @@ export default function Generator() {
       return lines.join("\n");
     })();
 
-    /** GEMINI – 이미지 한 장용 메타 프롬프트 */
+    /* ── Gemini: 정적 이미지 ── */
     if (targetArg === "gemini") {
-      const sceneLine =
-        userKo ||
-        "비 오는 네온 시티 골목, 인물 클로즈업, 젖은 바닥 반사, 시네마틱 무드";
-
-      const lines = [
-        "TARGET: GOOGLE GEMINI 2.5 FLASH IMAGE",
-        `STAGE: ${stageArg || "시네마틱"}${presetText}`,
-        "",
-        "GUIDE:",
-        "- Generate a single high-quality image based on the following Korean scene description.",
-        "- Focus on detailed lighting, composition and atmosphere.",
-        "- Return only the final prompt content suitable for an image generation model.",
-        "",
-        `SCENE (KOREAN): ${sceneLine}`,
-      ];
-
-      if (styleHintsText) {
-        lines.push("", `STYLE (ENGLISH HINTS): ${styleHintsText}`);
-      }
-
-      lines.push(
-        "",
-        "TECHNICAL SUGGESTION:",
-        "50mm lens, ISO 200, f1.8, softbox key light, subtle rim light, shallow depth of field, rule of thirds.",
-        "",
-        "NEGATIVE PROMPT:",
-        "watermark, logo, text, overexposed highlights, deformed hands, extra fingers, distorted face"
-      );
-
-      const main = lines.join("\n");
-      return referenceBlock ? `${main}\n\n${referenceBlock}` : main;
-    }
-
-    /** VEO – 6~8초 샷 플랜 */
-    if (targetArg === "veo") {
-      const sceneLine =
-        userKo ||
-        "카메라가 네온 숲 사이를 천천히 날아가며, 나무에서 흘러나오는 빛과 입자가 흐르는 장면";
-      const lines = [
-        "TARGET: GOOGLE VEO 3.1",
-        `STAGE: ${stageArg || "시네마틱"}${presetText}`,
-        "",
-        "GUIDE:",
-        "- Generate a detailed ENGLISH video prompt for a 6–8 second cinematic clip at 24fps.",
-        "- Include shot plan, camera movement, pacing and key transitions.",
-        "- Avoid copyrighted names, logos and explicit or graphic content.",
-        "",
-        "VIDEO SUMMARY (KOREAN):",
-        sceneLine,
-      ];
-
-      if (styleHintsText) {
-        lines.push("", `STYLE (ENGLISH HINTS): ${styleHintsText}`);
-      }
-
-      lines.push(
-        "",
-        "STRUCTURE:",
-        "1) One-sentence logline of the whole clip.",
-        "2) 3–5 numbered shots with framing (wide/medium/close), what moves, and camera motion.",
-        "3) Lighting and overall mood.",
-        "4) How the clip ends by the 8 second mark."
-      );
-
-      const main = lines.join("\n");
-      return referenceBlock ? `${main}\n\n${referenceBlock}` : main;
-    }
-
-    /** MIDJOURNEY – /imagine 한 줄 프롬프트 */
-    if (targetArg === "mj") {
       const base =
-        userKo ||
-        "cinematic portrait, soft rim light, highly detailed illustration";
-      const stylePart = styleHintsText ? `, ${styleHintsText}` : "";
-      const line = `/imagine prompt: ${base}${stylePart} --ar 3:4 --v 7 --style raw --no text --no watermark`;
+        user ||
+        "cinematic portrait of a character standing in a neon city alley at night, rain on the ground and reflections of signs on wet pavement";
 
-      return referenceBlock ? `${line}\n\n${referenceBlock}` : line;
+      const sceneLine = `${base}${extras}`;
+      const main = [
+        sceneLine,
+        "highly detailed, photorealistic, 8k resolution, ultra sharp focus, rich micro-texture, realistic skin and materials, subtle film grain, natural color balance",
+        "Negative: watermark, logo, text, UI, overexposed highlights, blown-out whites, deformed hands, extra fingers, distorted face, low resolution, compression artifacts",
+      ].join("\n");
+
+      return referenceBlock ? [main, referenceBlock].join("\n\n") : main;
     }
 
-    /** SORA – 8초 비디오 클립 설명 */
-    const sceneLineSora =
-      userKo ||
-      "dusk city street, one person walking slowly toward camera, traffic lights glowing in the background";
+    /* ── Veo: 시네마틱 비디오 ── */
+    if (targetArg === "veo") {
+      const base =
+        user ||
+        "camera slowly glides through a neon city alley after rain, following a single character walking away from the camera";
 
-    const lines = [
-      "TARGET: OPENAI SORA 2",
-      `STAGE: ${stageArg || "시네마틱"}${presetText}`,
-      "",
-      "GUIDE:",
-      "- Generate an ENGLISH prompt for an ~8 second cinematic video clip at 24fps.",
-      "- Focus on motion, environment storytelling and transitions.",
-      "- Avoid copyrighted names, logos and explicit or graphic content.",
-      "",
-      "VIDEO PROMPT (KOREAN):",
-      sceneLineSora,
-    ];
+      const scene = `${base}${extras}`;
 
-    if (styleHintsText) {
-      lines.push("", `STYLE (ENGLISH HINTS): ${styleHintsText}`);
+      const main = [
+        `High-end cinematic video, about 8–12 seconds at 24fps. Scene: ${scene}.`,
+        "",
+        "SHOT PLAN:",
+        "Shot 01 (2–3s) – Wide establishing shot: show the full environment, city details and overall mood, slow dolly-in or crane movement.",
+        "Shot 02 (3–5s) – Medium shot: follow the main subject with a gentle tracking shot, keep the background in soft motion parallax.",
+        "Shot 03 (2–4s) – Closer hero shot: focus on the subject's face or upper body, emphasize emotion and lighting, subtle handheld micro-movements.",
+        "",
+        "CAMERA & LOOK:",
+        "35mm–50mm look, smooth motion, no sudden cuts, no fast zooms, no shaky cam.",
+        "Cinematic depth of field, soft bokeh in the background, consistent lighting and color from shot to shot.",
+        "",
+        "RESTRICTIONS:",
+        "No text or logos in the scene, no copyrighted character names, no UI elements, no split-screen, no picture-in-picture.",
+      ].join("\n");
+
+      return referenceBlock ? [main, referenceBlock].join("\n\n") : main;
     }
 
-    lines.push(
-      "",
-      "ENDING:",
-      "- Briefly describe how the clip should end within 8 seconds."
-    );
+    /* ── Midjourney: /imagine ── */
+    if (targetArg === "mj") {
+      const content =
+        user ||
+        "cinematic portrait of a stylish character standing in a neon city alley at night, detailed environment, rich lighting";
+      const scene = `${content}${extras}`;
 
-    const main = lines.join("\n");
-    return referenceBlock ? `${main}\n\n${referenceBlock}` : main;
+      const ar = getMidjourneyAspectRatio(presetArg);
+      const stylize = getMidjourneyStylize(stageArg);
+
+      const line = `/imagine ${scene} --v 7 --style raw ${ar} ${stylize}`;
+
+      return referenceBlock ? [line, referenceBlock].join("\n\n") : line;
+    }
+
+    /* ── Sora: 8초 무드 클립 ── */
+    const base =
+      user ||
+      "dusk city street, one person walking slowly toward the camera, traffic lights glowing in the background";
+
+    const scene = `${base}${extras}`;
+
+    const main = [
+      `8 second cinematic video at 24fps. Scene: ${scene}.`,
+      "",
+      "CAMERA & MOTION:",
+      "Gentle handheld feel with subtle micro-movement, slow forward move toward the subject.",
+      "Keep motion smooth and readable, no fast whip pans or sudden cuts.",
+      "",
+      "LOOK & FEEL:",
+      "Filmic color grading, soft film grain, natural but dramatic lighting, clear silhouettes and strong depth.",
+      "",
+      "RESTRICTIONS:",
+      "No on-screen text, no logos, no watermarks, no UI, no split-screen effects.",
+    ].join("\n");
+
+    return referenceBlock ? [main, referenceBlock].join("\n\n") : main;
   };
 
   const buildPrompt = () =>
@@ -545,10 +535,9 @@ export default function Generator() {
   };
 
   const clearInput = () => {
-    if (!input && !refNote) return;
+    if (!input) return;
     if (!window.confirm("입력 내용을 모두 지울까요?")) return;
     setInput("");
-    setRefNote("");
   };
 
   const clearTags = () => setTags([]);
@@ -574,14 +563,14 @@ export default function Generator() {
               Promptree 생성기
             </h1>
             <p className="mt-1 text-xs sm:text-sm text-zinc-400">
-              AI 이미지/영상용 프롬프트를 빠르게 설계하는 작업 공간
+              AI 이미지/영상용 롱프롬프트를 빠르게 설계하는 작업 공간
             </p>
           </div>
           <button
             className="mt-2 sm:mt-0 self-start sm:self-auto h-9 px-3 rounded-xl border border-zinc-800 bg-zinc-900/70 hover:bg-zinc-800 text-xs"
             onClick={() =>
               alert(
-                "사용 가이드\n\n1) 위에서 타깃·단계·프리셋을 고르고\n2) [입력] 탭에서 장면을 한글로 한 줄만 적어도 되고,\n   길게 적어도 됩니다.\n3) 태그·참고이미지는 선택사항.\n4) [프롬프트 생성]을 누르면 타깃에 맞는 롱프롬프트가 만들어집니다.\n\n[결과] 탭에서 프롬프트를 복사하거나 게시글로 보낼 수 있습니다."
+                "사용 가이드\n\n1) 위에서 타깃·단계·프리셋을 고르고\n2) [입력] 탭에서 장면과 참고 이미지를 적은 뒤\n3) [프롬프트 생성] 버튼을 누르세요.\n\n[결과] 탭에서 프롬프트를 복사하거나 게시글로 보낼 수 있습니다."
               )
             }
           >
@@ -591,7 +580,7 @@ export default function Generator() {
 
         {/* 메인: lg부터만 2컬럼 */}
         <div className="space-y-4 lg:space-y-0 lg:grid lg:grid-cols-[minmax(0,260px),minmax(0,1fr)] lg:gap-4">
-          {/* 모바일에서 제일 위: 설정 패널 */}
+          {/* 좌측: 설정 패널 */}
           <aside className="space-y-4">
             {/* 타깃 */}
             <section className="rounded-2xl border border-zinc-800 bg-zinc-950/60 backdrop-blur-sm p-3 sm:p-4">
@@ -665,8 +654,8 @@ export default function Generator() {
                 ))}
               </div>
               <p className="text-[11px] text-zinc-500 leading-5">
-                프리셋은 추천 조합이고, 실제 장면은 형이 한글로 적는 걸 기준으로
-                영어 힌트만 살짝 얹어준다.
+                프리셋은 추천 조합이고, 실제 문장은 형이 편하게 한글로 한 줄
+                적는 걸 기준으로 잡았어.
               </p>
             </section>
 
@@ -692,7 +681,7 @@ export default function Generator() {
             </section>
           </aside>
 
-          {/* 오른쪽: 입력/결과 + 샘플 */}
+          {/* 우측: 입력/결과 + 샘플 */}
           <section className="space-y-4">
             {/* 입력/결과 카드 */}
             <div className="rounded-2xl border border-zinc-800 bg-zinc-950/70 backdrop-blur-sm overflow-hidden">
@@ -753,7 +742,7 @@ export default function Generator() {
                         </h2>
                         <span className="text-[10px] sm:text-[11px] text-zinc-500 text-left sm:text-right">
                           업로드하면 프롬프트에 &quot;참고 이미지 기반&quot;
-                          문장이 자동으로 들어갑니다.
+                          문장이 자동으로 들어가요.
                         </span>
                       </div>
                       <label className="flex items-center justify-between gap-3 rounded-xl border border-dashed border-zinc-700 bg-zinc-950/60 px-3 py-2 text-xs text-zinc-400 hover:border-zinc-500 hover:bg-zinc-900/60 cursor-pointer">
@@ -821,7 +810,7 @@ export default function Generator() {
                       />
                     </div>
 
-                    {/* 메인 입력 – 딱 한 칸 */}
+                    {/* 메인 입력 */}
                     <textarea
                       value={input}
                       onChange={(e) => setInput(e.target.value)}
@@ -875,7 +864,7 @@ export default function Generator() {
                   </>
                 )}
 
-                {/* 액션 버튼 (모바일 최적화) */}
+                {/* 액션 버튼 */}
                 <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:flex-wrap sm:items-center">
                   <button
                     onClick={onGenerate}
@@ -1032,7 +1021,9 @@ export default function Generator() {
                       className="p-3 sm:p-4 hover:bg-zinc-900/60"
                     >
                       <div className="flex items-center justify-between mb-1 gap-2">
-                        <span className="text-xs text-zinc-400">{h.at}</span>
+                        <span className="text-xs text-zinc-400">
+                          {h.at}
+                        </span>
                         <span className="text-xs text-zinc-400">
                           {
                             TARGETS.find((x) => x.id === h.target)?.label
