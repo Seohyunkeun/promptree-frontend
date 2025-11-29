@@ -144,12 +144,12 @@ function Editor({ onCancel, onSubmit, isAdmin, initialDraft }) {
 
       <div className="rounded-2xl border border-zinc-800 bg-zinc-950/80 p-5">
         <div className="grid gap-4">
-          {/* 상단: 말머리 + 제목 */}
-          <div className="flex flex-col gap-2 sm:flex-row">
+          {/* 첫 줄: 말머리 + 닉네임 + 비밀번호 (모바일도 한 줄) */}
+          <div className="flex flex-wrap gap-2">
             <select
               value={category}
               onChange={(e) => setCategory(e.target.value)}
-              className="px-3 py-2 rounded-xl border border-zinc-700 bg-[#111117] text-sm text-zinc-100"
+              className="px-3 py-2 rounded-xl border border-zinc-700 bg-[#111117] text-sm text-zinc-100 w-[96px] sm:w-[112px]"
             >
               {CATEGORY_OPTIONS.map((v) => (
                 <option key={v} value={v}>
@@ -157,36 +157,36 @@ function Editor({ onCancel, onSubmit, isAdmin, initialDraft }) {
                 </option>
               ))}
             </select>
-            <input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="제목을 입력하세요"
-              className="flex-1 px-3 py-2 rounded-xl border border-zinc-700 bg-[#111117] text-sm text-zinc-100 placeholder:text-zinc-500"
-            />
-          </div>
 
-          {/* 닉네임/비밀번호 */}
-          <div className="flex flex-col gap-2 sm:flex-row">
             <input
               value={isAdminNewPost ? "Promptree🌲" : author}
               onChange={(e) => !isAdminNewPost && setAuthor(e.target.value)}
               placeholder={isAdminNewPost ? "Promptree🌲" : "닉네임(선택)"}
               disabled={isAdminNewPost}
-              className={`px-3 py-2 rounded-xl border border-zinc-700 bg-[#111117] text-sm text-zinc-100 placeholder:text-zinc-500 ${
+              className={`flex-1 min-w-0 px-3 py-2 rounded-xl border border-zinc-700 bg-[#111117] text-sm text-zinc-100 placeholder:text-zinc-500 ${
                 isAdminNewPost ? "opacity-80 cursor-not-allowed" : ""
               }`}
             />
+
             {/* 관리자 새 글일 때는 비밀번호 굳이 안 받음 */}
             {!isAdminNewPost && (
               <input
                 value={pw}
                 onChange={(e) => setPw(e.target.value)}
-                placeholder="비밀번호(선택, 수정/삭제용)"
+                placeholder="비밀번호(선택)"
                 type="password"
-                className="px-3 py-2 rounded-xl border border-zinc-700 bg-[#111117] text-sm text-zinc-100 placeholder:text-zinc-500"
+                className="flex-1 min-w-0 px-3 py-2 rounded-xl border border-zinc-700 bg-[#111117] text-sm text-zinc-100 placeholder:text-zinc-500"
               />
             )}
           </div>
+
+          {/* 둘째 줄: 제목 */}
+          <input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="제목을 입력하세요"
+            className="w-full px-3 py-2 rounded-xl border border-zinc-700 bg-[#111117] text-sm text-zinc-100 placeholder:text-zinc-500"
+          />
 
           {/* 내용 */}
           <textarea
@@ -311,8 +311,8 @@ function CommentForm({ onAdd }) {
 
   return (
     <div className="grid gap-2">
-      {/* ✅ 모바일에서도 한 줄: 닉네임 / 비번 / 등록 버튼 */}
-      <div className="flex gap-2">
+      {/* 닉네임 + 비번 + 등록 버튼 : 모바일도 한 줄 */}
+      <div className="flex flex-wrap items-center gap-2">
         <input
           value={author}
           onChange={(e) => setAuthor(e.target.value)}
@@ -328,7 +328,7 @@ function CommentForm({ onAdd }) {
         />
         <button
           onClick={handleSubmit}
-          className="px-3 py-2 whitespace-nowrap rounded-xl border border-zinc-700 bg-white text-[13px] text-black hover:bg-zinc-200"
+          className="px-4 py-2 rounded-xl border border-zinc-700 bg-white text-[13px] text-black font-medium hover:bg-zinc-200"
         >
           등록
         </button>
@@ -349,6 +349,16 @@ function CommentList({ comments, onDelete }) {
     return (
       <p className="text-[13px] text-zinc-500">아직 댓글이 없습니다.</p>
     );
+
+  function handleDeleteClick(id) {
+    const pw = window.prompt("댓글 삭제용 비밀번호를 입력하세요.");
+    if (!pw || !pw.trim()) {
+      alert("비밀번호를 입력해야 댓글을 삭제할 수 있습니다.");
+      return;
+    }
+    onDelete(id, pw.trim());
+  }
+
   return (
     <ul className="grid gap-2">
       {comments.map((c) => (
@@ -369,7 +379,7 @@ function CommentList({ comments, onDelete }) {
           </div>
           <div className="mt-2">
             <button
-              onClick={() => onDelete(c.id)}
+              onClick={() => handleDeleteClick(c.id)}
               className="text-[12px] px-2 py-1 rounded-lg border border-red-500/60 text-red-300 hover:bg-red-500/10"
             >
               삭제
@@ -641,7 +651,8 @@ function DetailView({ isAdmin, adminPassword }) {
 
   useEffect(() => {
     load();
-  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
 
   const alreadyLiked = Array.isArray(post?.likedBy)
     ? post.likedBy.includes(currentUserId)
@@ -726,38 +737,18 @@ function DetailView({ isAdmin, adminPassword }) {
     }
   }
 
-  // ✅ 댓글 삭제 시 비밀번호 입력해서 서버로 전달
-  async function handleDeleteComment(cid) {
+  async function handleDeleteComment(cid, pwHash) {
     if (!post) return;
     if (!window.confirm("댓글을 삭제하시겠습니까?")) return;
-
-    let body = {};
-
-    // 관리자면 관리자 비밀번호로 삭제 가능
-    if (isAdmin && adminPassword) {
-      body = { adminPassword };
-    } else {
-      const pw = window.prompt("댓글 비밀번호를 입력하세요.");
-      if (!pw || !pw.trim()) {
-        alert("비밀번호를 입력해야 삭제할 수 있습니다.");
-        return;
-      }
-      body = { pwHash: pw.trim() };
-    }
-
     try {
       const data = await api(`/api/posts/${post.id}/comments/${cid}`, {
         method: "DELETE",
-        body: JSON.stringify(body),
+        body: JSON.stringify({ pwHash }),
       });
       setPost(data.post);
     } catch (e) {
       console.error(e);
-      if (e.message === "INVALID_PASSWORD") {
-        alert("비밀번호가 올바르지 않아 댓글을 삭제할 수 없습니다.");
-      } else {
-        alert("댓글 삭제 중 오류가 발생했습니다.");
-      }
+      alert("댓글 삭제 중 오류가 발생했습니다.");
     }
   }
 
@@ -844,17 +835,17 @@ function DetailView({ isAdmin, adminPassword }) {
               >
                 {post.category}
               </span>
-              <h1
-                className={`text-xl leading-tight ${
-                  isNotice
-                    ? "font-bold text-amber-100"
-                    : "font-semibold text-zinc-50"
-                }`}
-              >
-                {post.title}
-              </h1>
             </div>
-            <div className="text-[12px] text-zinc-400">
+            <h1
+              className={`text-xl leading-tight ${
+                isNotice
+                  ? "font-bold text-amber-100"
+                  : "font-semibold text-zinc-50"
+              }`}
+            >
+              {post.title}
+            </h1>
+            <div className="mt-1 text-[12px] text-zinc-400">
               글쓴이: {post.author || "익명"} · 추천 {post.likes || 0} · 조회{" "}
               {post.views || 0}
             </div>
